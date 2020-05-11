@@ -1,4 +1,4 @@
-package com.github.medavox.ipa_transcribers
+package com.github.medavox.pytokot
 
 import com.github.medavox.ipa_transcribers.CapturingRule
 import com.github.medavox.ipa_transcribers.IRule
