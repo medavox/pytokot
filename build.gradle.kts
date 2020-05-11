@@ -19,6 +19,7 @@ plugins {
     //java
     id ("org.jetbrains.dokka") version "0.9.18"
     id("com.github.johnrengelman.shadow") version "5.2.0"
+    id("com.github.ben-manes.versions") version "0.27.0"
 }
 
 group ="com.github.medavox"
