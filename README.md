@@ -1,6 +1,6 @@
 # pytokot
 
-A semi-automatic[^1] Python-to-Kotlin converter.
+A semi-automatic<sup>[1](#semiauto)</sup> Python-to-Kotlin converter.
 
 * [online](https://kotlinguistics.github.io/pytokot)
 * commandline app
@@ -82,5 +82,6 @@ dependencies {
 ```
 </details>
 
-[^1]: pytokot does as much as it for you, vastly reducing the work necessary to manually convert a .py file.
+<a name="semiauto">1</a>: pytokot does as much as it can for you, vastly reducing the work necessary to manually convert a Python file Kotlin.
+
 But there will always need to be some editing by hand; custom libraries cannot be predicted and matched to Kotlin equivalents.
