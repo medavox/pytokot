@@ -38,8 +38,6 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //list comprehensions
         //class defs
         //strings with single-quotes to double quotes (ignore in comments)
-
-        //functions 'def' to 'fun'
         //type tagging function args (with Any?)
         //make first use of a variable into its declaration (probably var)
         //main function
@@ -49,9 +47,18 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //lots of string functions, eg
         //string.lower() -> String.toLower()
         //len(obj) -> obj.size or obj.length
-        //False -> false, True -> true
+
         // pass -> {} or something else?
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
+
+        //False -> false
+        Rule(Regex("\\bTrue\\b"), "true"),
+        //True -> true
+        Rule(Regex("\\bFalse\\b"), "false"),
+
+        //functions 'def' to 'fun'
+        Rule(Regex("\\bdef\\b"), "fun"),
+
         CapturingRule(Regex("^(\\s*)if (.+):([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
             "${matches[1]!!.value}if (${matches[2]!!.value}) {${matches[3]!!.value}"
@@ -70,15 +77,20 @@ object Python2Kotlin: RuleBasedTranscriber() {
                 soFar:String, matches:MatchGroupCollection ->
             "\"${matches[1]!!.value}\"" }),
 
-        Rule(Regex("\band\b"), "&&"),
+        Rule(Regex("\\band\\b"), "&&"),
 
-        Rule(Regex("\bor\b"), "||"),
+        Rule(Regex("\\bor\\b"), "||"),
 
+        //this has to occur before the single double-quote rule
+        CapturingRule(Regex("\"\"\""), {s:String, m:MatchGroupCollection ->
+            currentRuleset = multiLineStringMode
+            s+m[0]!!.value
+        }),
         //switch to string mode when we encounter a single double-quote char (")
-        CapturingRule(Regex("([^\"]|^)\"([^\"])"), { soFar:String, m:MatchGroupCollection ->
-            println("entering string mode")
+        CapturingRule(Regex("\""), { soFar:String, m:MatchGroupCollection ->
+            //println("entering string mode")
             currentRuleset = doubleQuoteStringMode
-            soFar+"${m[1]!!.value}\"${m[2]!!.value}"}),
+            soFar+"\""}),
 
         //switch to comment mode when we encounter "#" (and convert it to a kotlin // comment)
         RevisingRule("#", { currentRuleset = commentToEndOfLineMode; "$it//"})//don't consume this, so the mode-switch rule below can match
@@ -91,16 +103,29 @@ object Python2Kotlin: RuleBasedTranscriber() {
     //strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
     private val doubleQuoteStringMode:List<IRule> = listOf(
         //switch back to normal-mode when we encounter a non-escaped double-quote character
-        CapturingRule(Regex("([^\"\\\\])\"([^\"\\\\])"), { soFar, matches ->
-            println("leaving string mode")
+        EverythingRule(Regex("[^\\\\]"),Regex("\""), { soFar, matches ->
+            //println("leaving string mode")
             currentRuleset = normalRules
-            "$soFar${matches[1]!!.value}\"${matches[1]!!.value}"
-        }, 0)
+            soFar+"\""
+        })
+    )
+
+    //multiline-strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
+    private val multiLineStringMode:List<IRule> = listOf(
+        //switch back to normal-mode when we encounter a non-escaped double-quote character
+        CapturingRule(Regex("\"\"\""), { s, m ->
+            //println("leaving string mode")
+            currentRuleset = normalRules
+            s+m[0]!!.value
+        })
     )
 
     //comment-mode, whose only rule is to switch back to normal mode upon matching a newline
     private val commentToEndOfLineMode:List<IRule> = listOf(
-        RevisingRule(Regex("\n"), { currentRuleset = normalRules; it+"\n"})
+        CapturingRule(Regex("\n"), {soFar:String, matches:MatchGroupCollection ->
+            currentRuleset = normalRules
+            soFar+matches[0]!!.value
+        })
     )
 
     private var currentRuleset = normalRules
