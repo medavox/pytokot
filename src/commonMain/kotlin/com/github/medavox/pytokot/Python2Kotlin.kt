@@ -54,32 +54,34 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
         CapturingRule(Regex("^(\\s*)if (.+):([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
-            "${matches[1]}if (${matches[2]}) {${matches[3]}"
+            "${matches[1]!!.value}if (${matches[2]!!.value}) {${matches[3]!!.value}"
         }),
 
         CapturingRule(Regex("^(\\s*)elif (.+):([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
-            "${matches[1]}} else if (${matches[2]}) {${matches[3]}"
+            "${matches[1]!!.value}} else if (${matches[2]!!.value}) {${matches[3]!!.value}"
         }),
 
         CapturingRule(Regex("^(\\s*)else ?:([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
-            "${matches[1]}} else {${matches[3]}" }),
+            "${matches[1]!!.value}} else {${matches[3]!!.value}" }),
 
         CapturingRule(Regex("u'([^']+)'"), {
                 soFar:String, matches:MatchGroupCollection ->
-            "\"${matches[1]}\"" }),
+            "\"${matches[1]!!.value}\"" }),
 
-        Rule(Regex("\\band\\b"), "&&"),
+        Rule(Regex("\band\b"), "&&"),
 
-        Rule(Regex("\\bor\\b"), "||"),
+        Rule(Regex("\bor\b"), "||"),
 
         //switch to string mode when we encounter a single double-quote char (")
-        RevisingRule(Regex("([^\"]|^)\"([^\"]|$)"), { currentRuleset = doubleQuoteStringMode; it}, 0),
+        CapturingRule(Regex("([^\"]|^)\"([^\"])"), { soFar:String, m:MatchGroupCollection ->
+            println("entering string mode")
+            currentRuleset = doubleQuoteStringMode
+            soFar+"${m[1]!!.value}\"${m[2]!!.value}"}),
 
-        Rule("#", "//", 0),//don't consume this, so the mode-switch rule below can match
-        //switch to comment mode when we encounter "//" (python # comments will always get converted first)
-        RevisingRule(Regex("//"), { currentRuleset = commentToEndOfLineMode; it}, 0)
+        //switch to comment mode when we encounter "#" (and convert it to a kotlin // comment)
+        RevisingRule("#", { currentRuleset = commentToEndOfLineMode; "$it//"})//don't consume this, so the mode-switch rule below can match
 
     )
 
@@ -89,12 +91,16 @@ object Python2Kotlin: RuleBasedTranscriber() {
     //strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
     private val doubleQuoteStringMode:List<IRule> = listOf(
         //switch back to normal-mode when we encounter a non-escaped double-quote character
-        RevisingRule(Regex("[^\\\\]\""), { currentRuleset = normalRules; it}, 0)
+        CapturingRule(Regex("([^\"\\\\])\"([^\"\\\\])"), { soFar, matches ->
+            println("leaving string mode")
+            currentRuleset = normalRules
+            "$soFar${matches[1]!!.value}\"${matches[1]!!.value}"
+        }, 0)
     )
 
     //comment-mode, whose only rule is to switch back to normal mode upon matching a newline
     private val commentToEndOfLineMode:List<IRule> = listOf(
-        RevisingRule(Regex("\n"), { currentRuleset = normalRules; it}, 0)
+        RevisingRule(Regex("\n"), { currentRuleset = normalRules; it+"\n"})
     )
 
     private var currentRuleset = normalRules
