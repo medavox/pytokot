@@ -57,22 +57,22 @@ object Python2Kotlin: RuleBasedTranscriber() {
         // pass -> {} or something else?
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
         CapturingRule(Regex("^(\\s*)if (.+):([^\\n]*)$"), {
-                soFar:String, theMatches:MatchGroupCollection ->
-            "\\1if (\\2) {\\3"
+                soFar:String, matches:MatchGroupCollection ->
+            "${matches[1]}if (${matches[2]}) {${matches[3]}"
         }),
 
         CapturingRule(Regex("^(\\s*)elif (.+):([^\\n]*)$"), {
-                soFar:String, theMatches:MatchGroupCollection ->
-            "\\1} else if (\\2) {\\3"
+                soFar:String, matches:MatchGroupCollection ->
+            "${matches[1]}} else if (${matches[2]}) {${matches[3]}"
         }),
 
         CapturingRule(Regex("^(\\s*)else ?:([^\\n]*)$"), {
-                soFar:String, theMatches:MatchGroupCollection ->
-            "\\1} else {\\3" }),
+                soFar:String, matches:MatchGroupCollection ->
+            "${matches[1]}} else {${matches[3]}" }),
 
         CapturingRule(Regex("u'([^']+)'"), {
-                soFar:String, theMatches:MatchGroupCollection ->
-            "\"\\1\"" }),
+                soFar:String, matches:MatchGroupCollection ->
+            "\"${matches[1]}\"" }),
 
         Rule(Regex("\\band\\b"), "&&"),
 
