@@ -35,8 +35,11 @@ a[-3::-1]  # everything except the last two items, reversed
 Python is kind to the programmer if there are fewer items than you ask for. For example, if you ask for a[:-2] and a only contains one element, you get an empty list instead of an error. Sometimes you would prefer the error, so you have to be aware that this may happen.
 * */
 object Python2Kotlin: RuleBasedTranscriber() {
-    //todo: ignore comments & string-literals mode
-    private val rules:List<IRule> = listOf(
+    //todo: ignore inside comments & string-literals mode
+    //todo: mode-switch upon a match
+    //       allows to switch into strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
+    //       or into comment-mode, whose only rule is to switch back to normal mode upon matching a newline
+    private val normalRules:List<IRule> = listOf(
         //slices
         //indentation to curly braces
         //list comprehensions
@@ -78,6 +81,9 @@ object Python2Kotlin: RuleBasedTranscriber() {
 
         Rule(Regex("\\bor\\b"), "||")
     )
+
+    private var currentRuleset = normalRules
+
     private var lastSeenIndentationSpaces = 0
     private fun indentationSpaces(spaces:Int) {
         //if line is non-empty, AND
@@ -86,6 +92,6 @@ object Python2Kotlin: RuleBasedTranscriber() {
     }
 
     override fun transcribe(nativeText: String): String {
-        TODO("Not yet implemented")
+        return nativeText.processWithRules({ currentRuleset}, copy)
     }
 }
