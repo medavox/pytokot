@@ -23,7 +23,7 @@ plugins {
 }
 
 group ="com.github.medavox"
-version = "0.2"
+version = "0.1"
 
 repositories {
     mavenCentral()
@@ -54,7 +54,8 @@ java {
 kotlin.sourceSets["jvmMain"].dependencies {
     implementation(kotlin("stdlib", KotlinCompilerVersion.VERSION))
     //implementation("commons-cli:commons-cli:1.4")
-    implementation("info.picocli:picocli:4.2.0")
+    //implementation("info.picocli:picocli:4.2.0")
+    implementation("com.github.ajalt:clikt:2.6.0")
 }
 
 kotlin.sourceSets["jsMain"].dependencies {
@@ -96,6 +97,6 @@ tasks.withType<ShadowJar> {
     minimize()
     manifest {
         attributes["Implementation-Version"] = version
-        attributes["Main-Class"] = "com.github.medavox.ipa_transcribers.Launcher"
+        attributes["Main-Class"] = "com.github.medavox.pytokot.MainKt"
     }
 }
