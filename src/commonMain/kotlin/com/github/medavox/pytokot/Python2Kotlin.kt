@@ -1,9 +1,6 @@
 package com.github.medavox.pytokot
 
-import com.github.medavox.ipa_transcribers.CapturingRule
-import com.github.medavox.ipa_transcribers.IRule
-import com.github.medavox.ipa_transcribers.Rule
-import com.github.medavox.ipa_transcribers.RuleBasedTranscriber
+import com.github.medavox.ipa_transcribers.*
 
 /*
 It's pretty simple really:
@@ -35,17 +32,13 @@ a[-3::-1]  # everything except the last two items, reversed
 Python is kind to the programmer if there are fewer items than you ask for. For example, if you ask for a[:-2] and a only contains one element, you get an empty list instead of an error. Sometimes you would prefer the error, so you have to be aware that this may happen.
 * */
 object Python2Kotlin: RuleBasedTranscriber() {
-    //todo: ignore inside comments & string-literals mode
-    //todo: mode-switch upon a match
-    //       allows to switch into strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
-    //       or into comment-mode, whose only rule is to switch back to normal mode upon matching a newline
     private val normalRules:List<IRule> = listOf(
         //slices
         //indentation to curly braces
         //list comprehensions
         //class defs
         //strings with single-quotes to double quotes (ignore in comments)
-        //single-line comments # to //
+
         //functions 'def' to 'fun'
         //type tagging function args (with Any?)
         //make first use of a variable into its declaration (probably var)
@@ -79,7 +72,29 @@ object Python2Kotlin: RuleBasedTranscriber() {
 
         Rule(Regex("\\band\\b"), "&&"),
 
-        Rule(Regex("\\bor\\b"), "||")
+        Rule(Regex("\\bor\\b"), "||"),
+
+        //switch to string mode when we encounter a single double-quote char (")
+        RevisingRule(Regex("([^\"]|^)\"([^\"]|$)"), { currentRuleset = doubleQuoteStringMode; it}, 0),
+
+        Rule("#", "//", 0),//don't consume this, so the mode-switch rule below can match
+        //switch to comment mode when we encounter "//" (python # comments will always get converted first)
+        RevisingRule(Regex("//"), { currentRuleset = commentToEndOfLineMode; it}, 0)
+
+    )
+
+    /**ignore inside comments & string-literals mode:
+    mode-switch upon a match*/
+
+    //strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
+    private val doubleQuoteStringMode:List<IRule> = listOf(
+        //switch back to normal-mode when we encounter a non-escaped double-quote character
+        RevisingRule(Regex("[^\\\\]\""), { currentRuleset = normalRules; it}, 0)
+    )
+
+    //comment-mode, whose only rule is to switch back to normal mode upon matching a newline
+    private val commentToEndOfLineMode:List<IRule> = listOf(
+        RevisingRule(Regex("\n"), { currentRuleset = normalRules; it}, 0)
     )
 
     private var currentRuleset = normalRules
