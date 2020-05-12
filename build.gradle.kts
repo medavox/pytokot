@@ -66,7 +66,7 @@ kotlin.sourceSets["jsMain"].dependencies {
 kotlin.sourceSets["commonMain"].dependencies {
     implementation(kotlin("stdlib-common"))
     implementation("org.jetbrains.kotlinx:kotlinx-html-common:0.7.1")
-    implementation("com.github.medavox:transcribers:-SNAPSHOT")
+    implementation("com.github.medavox:transcribers:v0.1")
 }
 
 kotlin.sourceSets["jvmTest"].dependencies {
