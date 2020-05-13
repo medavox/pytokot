@@ -32,7 +32,7 @@ a[-3::-1]  # everything except the last two items, reversed
 Python is kind to the programmer if there are fewer items than you ask for. For example, if you ask for a[:-2] and a only contains one element, you get an empty list instead of an error. Sometimes you would prefer the error, so you have to be aware that this may happen.
 * */
 object Python2Kotlin: RuleBasedTranscriber() {
-    private val normalRules:List<IRule> = listOf(
+    private val normalRules:List<BaseRule> = listOf(
         //slices
         //indentation to curly braces
         //list comprehensions
@@ -51,25 +51,24 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
 
         //False -> false
-        //todo: create rule which includes this consumed matcher
-        WordBoundaryRule(Regex("True\\b"), "true"),
+        WordBoundaryRule("True\\b", "true"),
         //True -> true
-        WordBoundaryRule(Regex("False\\b"), "false"),
+        WordBoundaryRule("False\\b", "false"),
 
         //functions 'def' to 'fun'
-        WordBoundaryRule(Regex("def\\b"), "fun"),
+        WordBoundaryRule("def\\b", "fun"),
 
-        CapturingRule(Regex("^(\\s*)if (.+):([^\\n]*)$"), {
+        WordBoundaryRule(Regex("if (.+):([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
             "${matches[1]!!.value}if (${matches[2]!!.value}) {${matches[3]!!.value}"
         }),
 
-        CapturingRule(Regex("^(\\s*)elif (.+):([^\\n]*)$"), {
+        WordBoundaryRule(Regex("elif (.+):([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
             "${matches[1]!!.value}} else if (${matches[2]!!.value}) {${matches[3]!!.value}"
         }),
 
-        CapturingRule(Regex("^(\\s*)else ?:([^\\n]*)$"), {
+        WordBoundaryRule(Regex("else ?:([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
             "${matches[1]!!.value}} else {${matches[3]!!.value}" }),
 
@@ -77,7 +76,7 @@ object Python2Kotlin: RuleBasedTranscriber() {
                 soFar:String, matches:MatchGroupCollection ->
             "\"${matches[1]!!.value}\"" }),
 
-        WordBoundaryRule(Regex("and\\b"), "&&"),
+        WordBoundaryRule("and\\b", "&&"),
 
         LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("or\\b"), "||"),
 
@@ -86,7 +85,7 @@ object Python2Kotlin: RuleBasedTranscriber() {
             currentRuleset = multiLineStringMode
             s+m[0]!!.value
         }),
-        //switch to string mode when we encounter a single double-quote char (")
+
         CapturingRule(Regex("\""), { soFar:String, m:MatchGroupCollection ->
             //println("entering string mode")
             currentRuleset = doubleQuoteStringMode
@@ -101,9 +100,9 @@ object Python2Kotlin: RuleBasedTranscriber() {
     mode-switch upon a match*/
 
     //strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
-    private val doubleQuoteStringMode:List<IRule> = listOf(
+    private val doubleQuoteStringMode:List<BaseRule> = listOf(
         //switch back to normal-mode when we encounter a non-escaped double-quote character
-        EverythingRule(Regex("[^\\\\]"),Regex("\""), { soFar, matches ->
+        BaseRule(Regex("[^\\\\]"),Regex("\""), { soFar, matches ->
             //println("leaving string mode")
             currentRuleset = normalRules
             soFar+"\""
@@ -111,7 +110,7 @@ object Python2Kotlin: RuleBasedTranscriber() {
     )
 
     //multiline-strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
-    private val multiLineStringMode:List<IRule> = listOf(
+    private val multiLineStringMode:List<BaseRule> = listOf(
         //switch back to normal-mode when we encounter a non-escaped double-quote character
         CapturingRule(Regex("\"\"\""), { s, m ->
             //println("leaving string mode")
@@ -121,7 +120,7 @@ object Python2Kotlin: RuleBasedTranscriber() {
     )
 
     //comment-mode, whose only rule is to switch back to normal mode upon matching a newline
-    private val commentToEndOfLineMode:List<IRule> = listOf(
+    private val commentToEndOfLineMode:List<BaseRule> = listOf(
         CapturingRule(Regex("\n"), {soFar:String, matches:MatchGroupCollection ->
             currentRuleset = normalRules
             soFar+matches[0]!!.value
