@@ -50,6 +50,16 @@ object Python2Kotlin: RuleBasedTranscriber() {
         // pass -> {} or something else?
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
 
+            //TODO: for curly braces:
+            //lookback consumed match on \n, then feed non-blank lines into a function which spits out "\n(INDENTATION)}" or "",
+            //if the non-blank line has less indentation than the last one
+            //switch to string mode when we encounter a single double-quote char (")
+        BaseRule(Regex("\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
+            soFar+m[1]!!.value+bracesFromIndents(m[1]!!.value)
+        }, {it[1]!!.value.length}),
+            //todo: need to only consume the number of chars in the line-initial whitespace,
+            //which means we need access the the matchgroup in the context of lettersConsumed
+
         //False -> false
         WordBoundaryRule("True\\b", "true"),
         //True -> true
@@ -98,7 +108,7 @@ object Python2Kotlin: RuleBasedTranscriber() {
 
     /**ignore inside comments & string-literals mode:
     mode-switch upon a match*/
-
+//todo: embed each of these Rule-lists-of-one-rule into the starting rule that switches to it
     //strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
     private val doubleQuoteStringMode:List<BaseRule> = listOf(
         //switch back to normal-mode when we encounter a non-escaped double-quote character
@@ -129,11 +139,16 @@ object Python2Kotlin: RuleBasedTranscriber() {
 
     private var currentRuleset = normalRules
 
-    private var lastSeenIndentationSpaces = 0
-    private fun indentationSpaces(spaces:Int) {
-        //if line is non-empty, AND
-        //indentation spaces are less than last time,
+    private var lastIndentation = ""
+    private fun bracesFromIndents(spaces:String):String {
+        //if indentation spaces are less than last time,
         //add a line before it with a "}" on it
+        val ret = if(spaces.length < lastIndentation.length) {
+            "}\n$spaces"
+        }else { "" }//else just return an empty string
+        lastIndentation = spaces
+
+        return ret
     }
 
     override fun transcribe(nativeText: String): String {
