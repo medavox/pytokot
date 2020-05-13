@@ -52,12 +52,13 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
 
         //False -> false
-        Rule(Regex("\\bTrue\\b"), "true"),
+        //todo: create rule which includes this consumed matcher
+        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("True\\b"), "true"),
         //True -> true
-        Rule(Regex("\\bFalse\\b"), "false"),
+        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("False\\b"), "false"),
 
         //functions 'def' to 'fun'
-        Rule(Regex("\\bdef\\b"), "fun"),
+        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("def\\b"), "fun"),
 
         CapturingRule(Regex("^(\\s*)if (.+):([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
@@ -77,9 +78,9 @@ object Python2Kotlin: RuleBasedTranscriber() {
                 soFar:String, matches:MatchGroupCollection ->
             "\"${matches[1]!!.value}\"" }),
 
-        Rule(Regex("\\band\\b"), "&&"),
+        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("and\\b"), "&&"),
 
-        Rule(Regex("\\bor\\b"), "||"),
+        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("or\\b"), "||"),
 
         //this has to occur before the single double-quote rule
         CapturingRule(Regex("\"\"\""), {s:String, m:MatchGroupCollection ->
