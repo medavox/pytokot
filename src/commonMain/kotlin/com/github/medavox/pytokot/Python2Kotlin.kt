@@ -1,6 +1,6 @@
 package com.github.medavox.pytokot
 
-import com.github.medavox.ipa_transcribers.*
+import com.github.medavox.transcribers.*
 
 /*
 It's pretty simple really:
