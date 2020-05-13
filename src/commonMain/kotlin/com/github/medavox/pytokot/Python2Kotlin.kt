@@ -47,18 +47,17 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //lots of string functions, eg
         //string.lower() -> String.toLower()
         //len(obj) -> obj.size or obj.length
-
         // pass -> {} or something else?
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
 
         //False -> false
         //todo: create rule which includes this consumed matcher
-        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("True\\b"), "true"),
+        WordBoundaryRule(Regex("True\\b"), "true"),
         //True -> true
-        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("False\\b"), "false"),
+        WordBoundaryRule(Regex("False\\b"), "false"),
 
         //functions 'def' to 'fun'
-        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("def\\b"), "fun"),
+        WordBoundaryRule(Regex("def\\b"), "fun"),
 
         CapturingRule(Regex("^(\\s*)if (.+):([^\\n]*)$"), {
                 soFar:String, matches:MatchGroupCollection ->
@@ -78,7 +77,7 @@ object Python2Kotlin: RuleBasedTranscriber() {
                 soFar:String, matches:MatchGroupCollection ->
             "\"${matches[1]!!.value}\"" }),
 
-        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("and\\b"), "&&"),
+        WordBoundaryRule(Regex("and\\b"), "&&"),
 
         LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("or\\b"), "||"),
 
