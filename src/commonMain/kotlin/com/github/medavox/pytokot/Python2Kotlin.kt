@@ -31,6 +31,7 @@ a[-3::-1]  # everything except the last two items, reversed
 
 Python is kind to the programmer if there are fewer items than you ask for. For example, if you ask for a[:-2] and a only contains one element, you get an empty list instead of an error. Sometimes you would prefer the error, so you have to be aware that this may happen.
 * */
+var tabSize:Int = 4
 object Python2Kotlin: RuleBasedTranscriber() {
     private val normalRules:List<BaseRule> = listOf(
         //slices
@@ -138,15 +139,34 @@ object Python2Kotlin: RuleBasedTranscriber() {
     private var currentRuleset = normalRules
 
     private var lastIndentation = ""
+    private val openIndents = CommonStack<String>()
     private fun bracesFromIndents(spaces:String):String {
         //if indentation spaces are less than last time,
         //add a line before it with a "}" on it
-        val ret = if(spaces.length < lastIndentation.length) {
-            "}\n$spaces"
-        }else { "" }//else just return an empty string
-        lastIndentation = spaces
-
+        val ret = if(openIndents.peek() != null && spaces.totalIndentation() < openIndents.peek()!!.totalIndentation()) {
+            val gek = StringBuilder()
+            //don't to bother closing the most recent indent:
+            //the last line is enclosed, not enclosing
+            openIndents.pop()
+            while (openIndents.isNotEmpty()) {
+                val indentation = openIndents.pop()
+                gek.append("}\n$indentation")
+            }
+            //keep adding curly braces and their indentation to the string
+            gek.toString()
+        }else {
+            if(openIndents.peek() == null || spaces.totalIndentation() > openIndents.peek()!!.totalIndentation()) {
+                //indentation has increased, add it to the stack
+                openIndents.add(spaces)
+            }
+            ""
+        }//else just return an empty string
         return ret
+    }
+
+    /**Add up the total value, in spaces, of all the indentation in the argument string.*/
+    private fun String.totalIndentation():Int {
+        return count { it == ' ' } + (count { it == '\t' } * tabSize)
     }
 
     override fun transcribe(nativeText: String): String {
