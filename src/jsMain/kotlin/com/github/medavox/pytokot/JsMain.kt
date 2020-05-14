@@ -7,14 +7,14 @@ import kotlin.browser.document
 fun main() {
     val uiStrings = UiStrings.English//todo: a system to choose UI language
     val slekt = document.getElementById("lang_select") as HTMLSelectElement
-    Language.values().forEach {
+    /*Language.values().forEach {
         slekt.add(Option(
             text= it.neim,
             value = it.name,
             defaultSelected = false,
             selected = false
         ))
-    }
+    }*/
 
     val inputTextArea = document.getElementById("input_text") as HTMLTextAreaElement
     val outputTextArea = document.getElementById("output_text") as HTMLTextAreaElement
@@ -27,7 +27,7 @@ fun main() {
 
     val button = document.getElementById("transliterate_button") as HTMLButtonElement
     button.addEventListener("click", { event:Event ->
-        val transcribr = Language.values().firstOrNull { it.ordinal == slekt.selectedIndex }!!.transcriber
+        val transcribr = Python2Kotlin
         outputTextArea.textContent = transcribr.transcribe(inputTextArea.value)
         //errorsTextArea.textContent = "transcriber: $transcribr"
     })
