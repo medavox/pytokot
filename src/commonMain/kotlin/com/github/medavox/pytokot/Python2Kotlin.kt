@@ -68,27 +68,25 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //functions 'def' to 'fun'
         WordBoundaryRule("def\\b", "fun"),
 
-        WordBoundaryRule(Regex("if (.+):([^\\n]*)$"), {
-                soFar:String, matches:MatchGroupCollection ->
-            "${matches[1]!!.value}if (${matches[2]!!.value}) {${matches[3]!!.value}"
+        WordBoundaryRule(Regex("if ([^:]+):"), { soFar:String, matches:MatchGroupCollection ->
+            "${soFar}if (${matches[1]!!.value}) {"
         }),
 
-        WordBoundaryRule(Regex("elif (.+):([^\\n]*)$"), {
-                soFar:String, matches:MatchGroupCollection ->
-            "${matches[1]!!.value}} else if (${matches[2]!!.value}) {${matches[3]!!.value}"
+        WordBoundaryRule(Regex("elif ([^:]+):"), { soFar:String, matches:MatchGroupCollection ->
+            "${soFar}else if (${matches[1]!!.value}) {"
         }),
 
-        WordBoundaryRule(Regex("else ?:([^\\n]*)$"), {
-                soFar:String, matches:MatchGroupCollection ->
-            "${matches[1]!!.value}} else {${matches[3]!!.value}" }),
+        WordBoundaryRule(Regex("else ?:"), { soFar:String, matches:MatchGroupCollection ->
+            "${soFar}else {"
+        }),
 
-        CapturingRule(Regex("u'([^']+)'"), {
-                soFar:String, matches:MatchGroupCollection ->
-            "\"${matches[1]!!.value}\"" }),
+        CapturingRule(Regex("u'([^']+)'"), { soFar:String, matches:MatchGroupCollection ->
+            "${soFar}\"${matches[1]!!.value}\""
+        }),
 
         WordBoundaryRule("and\\b", "&&"),
 
-        LookbackRule(Regex("(^|[^a-zA-Z_0-9])"), Regex("or\\b"), "||"),
+        WordBoundaryRule("or\\b", "||"),
 
         //this has to occur before the single double-quote rule
         CapturingRule(Regex("\"\"\""), {s:String, m:MatchGroupCollection ->
