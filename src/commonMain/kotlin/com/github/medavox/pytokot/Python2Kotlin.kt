@@ -151,27 +151,17 @@ object Python2Kotlin: RuleBasedTranscriber() {
             if (debug) println(openIndents.fold("CLOSING BRACES; stack:"){ acc, el -> "$acc $el,"})
             if (debug) println("input: $newIndentation")
             val gek = StringBuilder()
-            //don't to bother closing the most recent indent:
+            //don't bother closing the most recent indent:
             //the last line is enclosed, not enclosing
             //openIndents.remove(openIndents.last())
             val outputBraces = openIndents.subList(0, openIndents.size-1).filter { it >= newIndentation}
-            //val bracesToRemove = openIndents
+            val bracesToRemove = outputBraces+openIndents.last()
             val output = StringBuilder("output: ")
-            val removed = StringBuilder("removed: ")
-            while (openIndents.size > 1 && newIndentation <= openIndents.last()) {
-                removed.append("${openIndents.last()}, ")
-                openIndents.remove(openIndents.last())
-                val guj = openIndents.last()
-                output.append("$guj, ")
-                //println("indentation: $last")
-                val indentation = " ".repeat(guj)
-                //println(" ".repeat(last)+"<")
-                gek.append("$indentation}\n")
-            }
-            if (debug) println(output)
-            if (debug) println(removed)
+            if (debug) println(outputBraces.fold("output: "){ acc, el -> "$acc $el,"})
+            if (debug) println(bracesToRemove.fold("removed: "){ acc, el -> "$acc $el,"})
+            openIndents.removeAll(bracesToRemove)
 
-            gek.append(" ".repeat(newIndentation)).toString()
+            outputBraces.reversed().fold("") {acc, el -> acc+" ".repeat(el)+"}\n" }+" ".repeat(newIndentation)
         }else {//indentations are empty, or the new indentation is not less than the last
             if (debug) println(openIndents.fold("NOT BRACING; stack: "){ acc, el -> "$acc $el,"})
             " ".repeat(newIndentation)
