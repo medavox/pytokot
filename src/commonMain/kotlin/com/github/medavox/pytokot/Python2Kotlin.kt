@@ -140,25 +140,24 @@ object Python2Kotlin: RuleBasedTranscriber() {
     private var currentRuleset = normalRules
 
     private val openIndents = mutableListOf<Int>()
+    /**if indentation spaces are less than last time,
+    add a line before it with a "}" on it*/
     private fun bracesFromIndents(newIndentation:Int):String {
-        //if indentation spaces are less than last time,
-        //add a line before it with a "}" on it
         return if(openIndents.isNotEmpty() && newIndentation < openIndents.last()) {
-            println("stack: ")
-            openIndents.forEach { println(it) }
+            /*println("stack: ")
+            openIndents.forEach { println(it) }*/
             val gek = StringBuilder()
             //don't to bother closing the most recent indent:
             //the last line is enclosed, not enclosing
-            openIndents.remove(openIndents.last())
-            while (openIndents.isNotEmpty() && newIndentation <= openIndents.last()) {
-                val last = openIndents.last()
+            //openIndents.remove(openIndents.last())
+            while (openIndents.size > 1 && newIndentation <= openIndents.last()) {
                 openIndents.remove(openIndents.last())
+                val guj = openIndents.last()
                 //println("indentation: $last")
-                val indentation = " ".repeat(last)
+                val indentation = " ".repeat(guj)
                 //println(" ".repeat(last)+"<")
                 gek.append("$indentation}\n")
             }
-            //keep adding curly braces and their indentation to the string
             gek.append(" ".repeat(newIndentation)).toString()
         }else {//indentations are empty, or the new indentation is not less than the last
             if(openIndents.isEmpty() || newIndentation > openIndents.last()) {
