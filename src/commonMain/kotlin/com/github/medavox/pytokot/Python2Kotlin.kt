@@ -49,14 +49,15 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //string.lower() -> String.toLower()
         //len(obj) -> obj.size or obj.length
         // pass -> {} or something else?
+        //built-in functions
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
 
             //TODO: for curly braces:
             //lookback consumed match on \n, then feed non-blank lines into a function which spits out "\n(INDENTATION)}" or "",
             //if the non-blank line has less indentation than the last one
             //switch to string mode when we encounter a single double-quote char (")
-        BaseRule(Regex("\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
-            soFar+m[1]!!.value+bracesFromIndents(m[1]!!.value)
+        BaseRule(Regex("\\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
+            soFar+bracesFromIndents(m[1]!!.value.indentation)
         }, {it[1]!!.value.length}),
             //todo: need to only consume the number of chars in the line-initial whitespace,
             //which means we need access the the matchgroup in the context of lettersConsumed
@@ -138,34 +139,39 @@ object Python2Kotlin: RuleBasedTranscriber() {
 
     private var currentRuleset = normalRules
 
-    private var lastIndentation = ""
-    private val openIndents = CommonStack<String>()
-    private fun bracesFromIndents(spaces:String):String {
+    private val openIndents = mutableListOf<Int>()
+    private fun bracesFromIndents(newIndentation:Int):String {
         //if indentation spaces are less than last time,
         //add a line before it with a "}" on it
-        val ret = if(openIndents.peek() != null && spaces.totalIndentation() < openIndents.peek()!!.totalIndentation()) {
+        return if(openIndents.isNotEmpty() && newIndentation < openIndents.last()) {
+            println("stack: ")
+            openIndents.forEach { println(it) }
             val gek = StringBuilder()
             //don't to bother closing the most recent indent:
             //the last line is enclosed, not enclosing
-            openIndents.pop()
-            while (openIndents.isNotEmpty()) {
-                val indentation = openIndents.pop()
-                gek.append("}\n$indentation")
+            openIndents.remove(openIndents.last())
+            while (openIndents.isNotEmpty() && newIndentation <= openIndents.last()) {
+                val last = openIndents.last()
+                openIndents.remove(openIndents.last())
+                //println("indentation: $last")
+                val indentation = " ".repeat(last)
+                //println(" ".repeat(last)+"<")
+                gek.append("$indentation}\n")
             }
             //keep adding curly braces and their indentation to the string
-            gek.toString()
-        }else {
-            if(openIndents.peek() == null || spaces.totalIndentation() > openIndents.peek()!!.totalIndentation()) {
+            gek.append(" ".repeat(newIndentation)).toString()
+        }else {//indentations are empty, or the new indentation is not less than the last
+            if(openIndents.isEmpty() || newIndentation > openIndents.last()) {
                 //indentation has increased, add it to the stack
-                openIndents.add(spaces)
+                openIndents.add(newIndentation)
+                //println(" ".repeat(openIndents.last())+">")
             }
-            ""
-        }//else just return an empty string
-        return ret
+            " ".repeat(newIndentation)
+        }
     }
 
     /**Add up the total value, in spaces, of all the indentation in the argument string.*/
-    private fun String.totalIndentation():Int {
+    private val String.indentation:Int get()  {
         return count { it == ' ' } + (count { it == '\t' } * tabSize)
     }
 
