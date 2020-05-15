@@ -57,7 +57,7 @@ object Python2Kotlin: RuleBasedTranscriber() {
             //if the non-blank line has less indentation than the last one
             //switch to string mode when we encounter a single double-quote char (")
         BaseRule(Regex("\\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
-            soFar+bracesFromIndents(m[1]!!.value.indentation)
+            soFar+bracesFromIndents(m[1]!!.value.indentation, m[2]!!.value)
         }, {it[1]!!.value.length}),
             //todo: need to only consume the number of chars in the line-initial whitespace,
             //which means we need access the the matchgroup in the context of lettersConsumed
@@ -142,31 +142,48 @@ object Python2Kotlin: RuleBasedTranscriber() {
     private val openIndents = mutableListOf<Int>()
     /**if indentation spaces are less than last time,
     add a line before it with a "}" on it*/
-    private fun bracesFromIndents(newIndentation:Int):String {
-        return if(openIndents.isNotEmpty() && newIndentation < openIndents.last()) {
-            /*println("stack: ")
-            openIndents.forEach { println(it) }*/
+    private fun bracesFromIndents(newIndentation:Int, debugLineHint:String=""):String {
+        //EUREKA: the line that triggers this algo IS ALSO A LINE WITH ITS OWN INDENT TO BE ADDED
+        val debug = true
+        //val debug = (newIndentation !in openIndents)
+        if (debug) println( "FOR LINE STARTING \"$debugLineHint\": ")
+        val ret = if(openIndents.isNotEmpty() && newIndentation < openIndents.last()) {
+            if (debug) println(openIndents.fold("CLOSING BRACES; stack:"){ acc, el -> "$acc $el,"})
+            if (debug) println("input: $newIndentation")
             val gek = StringBuilder()
             //don't to bother closing the most recent indent:
             //the last line is enclosed, not enclosing
             //openIndents.remove(openIndents.last())
+            val outputBraces = openIndents.subList(0, openIndents.size-1).filter { it >= newIndentation}
+            //val bracesToRemove = openIndents
+            val output = StringBuilder("output: ")
+            val removed = StringBuilder("removed: ")
             while (openIndents.size > 1 && newIndentation <= openIndents.last()) {
+                removed.append("${openIndents.last()}, ")
                 openIndents.remove(openIndents.last())
                 val guj = openIndents.last()
+                output.append("$guj, ")
                 //println("indentation: $last")
                 val indentation = " ".repeat(guj)
                 //println(" ".repeat(last)+"<")
                 gek.append("$indentation}\n")
             }
+            if (debug) println(output)
+            if (debug) println(removed)
+
             gek.append(" ".repeat(newIndentation)).toString()
         }else {//indentations are empty, or the new indentation is not less than the last
-            if(openIndents.isEmpty() || newIndentation > openIndents.last()) {
-                //indentation has increased, add it to the stack
-                openIndents.add(newIndentation)
-                //println(" ".repeat(openIndents.last())+">")
-            }
+            if (debug) println(openIndents.fold("NOT BRACING; stack: "){ acc, el -> "$acc $el,"})
             " ".repeat(newIndentation)
         }
+        if(openIndents.isEmpty() || newIndentation > openIndents.last()) {
+            //indentation has increased, add it to the stack
+            if (debug) println("added $newIndentation")
+            openIndents.add(newIndentation)
+            //println(" ".repeat(openIndents.last())+">")
+        }
+        if (debug) println()
+        return ret
     }
 
     /**Add up the total value, in spaces, of all the indentation in the argument string.*/
