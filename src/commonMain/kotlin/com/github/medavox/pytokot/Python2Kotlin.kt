@@ -1,5 +1,6 @@
 package com.github.medavox.pytokot
 
+import com.github.medavox.pytokot.Shims.Keys.stringSize
 import com.github.medavox.transcribers.*
 
 /*
@@ -33,9 +34,9 @@ Python is kind to the programmer if there are fewer items than you ask for. For 
 * */
 var tabSize:Int = 4
 object Python2Kotlin: RuleBasedTranscriber() {
+    private val shims = Shims()
     private val normalRules:List<BaseRule> = listOf(
         //slices
-        //indentation to curly braces
         //list comprehensions
         //class defs
         //strings with single-quotes to double quotes (ignore in comments)
@@ -47,14 +48,10 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //dictionary declarations
         //lots of string functions, eg
         //string.lower() -> String.toLower()
-        //len(obj) -> obj.size or obj.length
-        // pass -> {} or something else?
         //built-in functions
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
+        //with
 
-            //TODO: for curly braces:
-            //lookback consumed match on \n, then feed non-blank lines into a function which spits out "\n(INDENTATION)}" or "",
-            //if the non-blank line has less indentation than the last one
             //switch to string mode when we encounter a single double-quote char (")
         BaseRule(Regex("\\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
             soFar+bracesFromIndents(m[1]!!.value.indentation, m[2]!!.value)
@@ -62,13 +59,23 @@ object Python2Kotlin: RuleBasedTranscriber() {
             //todo: need to only consume the number of chars in the line-initial whitespace,
             //which means we need access the the matchgroup in the context of lettersConsumed
 
-        //False -> false
         WordBoundaryRule("True\\b", "true"),
-        //True -> true
         WordBoundaryRule("False\\b", "false"),
-
-        //functions 'def' to 'fun'
         WordBoundaryRule("def\\b", "fun"),
+        //comment out but don't delete 'pass'es,
+        WordBoundaryRule("pass\\b", "//pass"),//for indentation-to-closing-brace conversion
+        WordBoundaryRule("and\\b", "&&"),
+        WordBoundaryRule("or\\b", "||"),
+
+        //len(obj) -> obj.size or obj.length
+        WordBoundaryRule(Regex("len\\(([^)]+)\\)"), {s, m ->
+            shims.enable(stringSize)
+            s+m[1]!!.value+".size"
+        }),
+
+        WordBoundaryRule(Regex("for\\h*([^:]+):"), {s, m ->
+            s+"for ("+m[1]!!.value+") {"
+        }),
 
         WordBoundaryRule(Regex("if ([^:]+):"), { soFar:String, matches:MatchGroupCollection ->
             "${soFar}if (${matches[1]!!.value}) {"
@@ -86,54 +93,41 @@ object Python2Kotlin: RuleBasedTranscriber() {
             "${soFar}\"${matches[1]!!.value}\""
         }),
 
-        WordBoundaryRule("and\\b", "&&"),
+        //keep single-character python strings as Kotlin Char literals; this is to prevent the next rule consuming them
+        CapturingRule(Regex("\'[^\']\'"), {s, m -> s + "\'${m[1]!!.value}\'"}),
 
-        WordBoundaryRule("or\\b", "||"),
+        CapturingRule(Regex("\'[^\']{2,}"), {s, m ->
+            currentRuleset = ignoreUntil("[^\\\\]", "\'")
+            s + "\'${m[1]!!.value}\'"
+        }),
 
         //this has to occur before the single double-quote rule
         CapturingRule(Regex("\"\"\""), {s:String, m:MatchGroupCollection ->
-            currentRuleset = multiLineStringMode
+            currentRuleset = ignoreUntil("\"\"\"")
             s+m[0]!!.value
         }),
 
         CapturingRule(Regex("\""), { soFar:String, m:MatchGroupCollection ->
             //println("entering string mode")
-            currentRuleset = doubleQuoteStringMode
+            currentRuleset = ignoreUntil("[^\\\\]", "\"")
             soFar+"\""}),
 
+        //fallback rule: end-of-line colons -> curly braces
+        Rule("\\h*:\\h*\\n", " {\n"),
+
         //switch to comment mode when we encounter "#" (and convert it to a kotlin // comment)
-        RevisingRule("#", { currentRuleset = commentToEndOfLineMode; "$it//"})//don't consume this, so the mode-switch rule below can match
+        RevisingRule("#", { currentRuleset = ignoreUntil("\n"); "$it//"})//don't consume this, so the mode-switch rule below can match
 
     )
-
-    /**ignore inside comments & string-literals mode:
-    mode-switch upon a match*/
-//todo: embed each of these Rule-lists-of-one-rule into the starting rule that switches to it
-    //strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
-    private val doubleQuoteStringMode:List<BaseRule> = listOf(
-        //switch back to normal-mode when we encounter a non-escaped double-quote character
-        BaseRule(Regex("[^\\\\]"),Regex("\""), { soFar, matches ->
-            //println("leaving string mode")
+    fun ignoreUntil(consumedMatcher:String?=null, closingRegexToDetect:String):
+            List<BaseRule> = ignoreUntil(if(consumedMatcher != null) Regex(consumedMatcher) else null,
+        Regex(closingRegexToDetect))
+    fun ignoreUntil(closingRegexToDetect:Regex):List<BaseRule> = ignoreUntil(null, closingRegexToDetect)
+    fun ignoreUntil(closingRegexToDetect:String):List<BaseRule> = ignoreUntil(Regex(closingRegexToDetect))
+    fun ignoreUntil(consumedMatcher:Regex?=null, closingRegexToDetect:Regex):List<BaseRule> = listOf(
+        BaseRule(consumedMatcher, closingRegexToDetect, { soFar, matches ->
             currentRuleset = normalRules
-            soFar+"\""
-        })
-    )
-
-    //multiline-strings-mode, whose only rule is to switch back to normal mode upon matching the corresponding string-end regex
-    private val multiLineStringMode:List<BaseRule> = listOf(
-        //switch back to normal-mode when we encounter a non-escaped double-quote character
-        CapturingRule(Regex("\"\"\""), { s, m ->
-            //println("leaving string mode")
-            currentRuleset = normalRules
-            s+m[0]!!.value
-        })
-    )
-
-    //comment-mode, whose only rule is to switch back to normal mode upon matching a newline
-    private val commentToEndOfLineMode:List<BaseRule> = listOf(
-        CapturingRule(Regex("\n"), {soFar:String, matches:MatchGroupCollection ->
-            currentRuleset = normalRules
-            soFar+matches[0]!!.value
+            soFar + matches[0]!!.value
         })
     )
 
@@ -141,22 +135,19 @@ object Python2Kotlin: RuleBasedTranscriber() {
 
     private val openIndents = mutableListOf<Int>()
     /**if indentation spaces are less than last time,
-    add a line before it with a "}" on it*/
+    add a line before it with a "}" on it
+    spits out "\n(INDENTATION)}" or "",
+    depending on if the non-blank line has less indentation than the last one*/
     private fun bracesFromIndents(newIndentation:Int, debugLineHint:String=""):String {
         //EUREKA: the line that triggers this algo IS ALSO A LINE WITH ITS OWN INDENT TO BE ADDED
-        val debug = true
+        val debug = false
         //val debug = (newIndentation !in openIndents)
         if (debug) println( "FOR LINE STARTING \"$debugLineHint\": ")
         val ret = if(openIndents.isNotEmpty() && newIndentation < openIndents.last()) {
             if (debug) println(openIndents.fold("CLOSING BRACES; stack:"){ acc, el -> "$acc $el,"})
             if (debug) println("input: $newIndentation")
-            val gek = StringBuilder()
-            //don't bother closing the most recent indent:
-            //the last line is enclosed, not enclosing
-            //openIndents.remove(openIndents.last())
             val outputBraces = openIndents.subList(0, openIndents.size-1).filter { it >= newIndentation}
             val bracesToRemove = outputBraces+openIndents.last()
-            val output = StringBuilder("output: ")
             if (debug) println(outputBraces.fold("output: "){ acc, el -> "$acc $el,"})
             if (debug) println(bracesToRemove.fold("removed: "){ acc, el -> "$acc $el,"})
             openIndents.removeAll(bracesToRemove)
@@ -182,6 +173,6 @@ object Python2Kotlin: RuleBasedTranscriber() {
     }
 
     override fun transcribe(nativeText: String): String {
-        return nativeText.processWithRules({ currentRuleset}, copy)
+        return nativeText.processWithRules({ currentRuleset}, copy)+shims.getNeededShims()
     }
 }
