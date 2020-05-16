@@ -59,8 +59,13 @@ private fun String.s(index:Int):String {
  *  Also casts the resultant [Char] to a [String].
  *  The s stands for slice.*/
 private fun String.s(start:Int?, end:Int?, step:Int?=null):String {
-    val actualStep = when(step) {
-        null -> 1
+    var reversed = false
+    val actualStep = when {
+        step == null -> 1
+        step < 0 -> {
+            reversed = true
+            step * -1
+        }
         else -> step
     }
     val actualStart = when {
@@ -73,7 +78,7 @@ private fun String.s(start:Int?, end:Int?, step:Int?=null):String {
         end >= 0 -> end
         else -> length-end
     }
-    return this.substring(actualStart, actualEnd)
+    return this.slice(actualStart until actualEnd step actualStep).run{ if(reversed) reversed() else this }
 }
 //slice to ranges (the until syntax)
 /**Allows the use of Python-like negative indices, which go backwards from the end of a [String].

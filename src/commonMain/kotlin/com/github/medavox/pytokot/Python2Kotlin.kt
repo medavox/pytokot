@@ -41,18 +41,16 @@ var tabSize:Int = 4
 object Python2Kotlin: RuleBasedTranscriber() {
     private val shims = Shims()
     private val normalRules:List<BaseRule> = listOf(
-        //slices
         //list comprehensions
         //class defs
         //strings with single-quotes to double quotes (ignore in comments)
         //type tagging function args (with Any?)
-        //make first use of a variable into its declaration (probably var)
+        //(somehow) make first use of a variable into its declaration (probably var)
         //main function
         //print calls
         //lambdas
         //dictionary declarations
-        //lots of string functions, eg
-        //string.lower() -> String.toLower()
+        //lots of string functions, eg string.lower() -> String.toLower()
         //built-in functions
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
         //with
@@ -61,32 +59,37 @@ object Python2Kotlin: RuleBasedTranscriber() {
         BaseRule(Regex("\\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
             soFar+bracesFromIndents(m[1]!!.value.indentation, m[2]!!.value)
         }, {it[1]!!.value.length}),
+
+        //slice: one arg
         //a[-1]    # last item in the array
         CapturingRule(Regex("\\[(-?\\d+)]"), {s, m ->
             shims.enable(Shims.Keys.slices)
             s+"!!.s(${m[1]!!.value})"
         }),
-        //        a[-2:]   # last two items in the array
-        CapturingRule(Regex("\\[(-?\\d+):]"), {s, m ->
+
+        //slice: two args
+        //a[-2:]   # last two items in the array
+        //a[:-2]   # everything except the last two items
+        //a[-5:-2]
+        CapturingRule(Regex("\\[((?:-?\\d+)?):((?:-?\\d+)?)]"), {s, m ->
             shims.enable(Shims.Keys.slices)
-            s+"!!.s(${m[1]!!.value}, null)"
-        }),
-        //        a[:-2]   # everything except the last two items
-        CapturingRule(Regex("\\[:(-?\\d+)]"), {s, m ->
-            shims.enable(Shims.Keys.slices)
-            s+"!!.s(null, ${m[1]!!.value})"
+            s+"!!.s(${if(m[1]!!.value.isEmpty()) "null" else m[1]!!.value}, " +
+                    "${if(m[2]!!.value.isEmpty()) "null" else m[2]!!.value})"
         }),
 
-        //a[-5:-2]
-        CapturingRule(Regex("\\[(-?\\d+):(-?\\d+)]"), {s, m ->
+        //slice: three args
+        //Similarly, step may be a negative number:
+        //a[::-1]    # all items in the array, reversed
+        //a[1::-1]   # the first two items, reversed
+        //a[:-3:-1]  # the last two items, reversed
+        //a[-3::-1]  # everything except the last two items, reversed
+        CapturingRule(Regex("\\[((?:-?\\d+)?):((?:-?\\d+)?):((?:-?\\d+)?)]"), {s, m ->
             shims.enable(Shims.Keys.slices)
-            s+"!!.s(${m[1]!!.value}, ${m[2]!!.value})"
+            s+"!!.s(${if(m[1]!!.value.isEmpty()) "null" else m[1]!!.value}, " +
+                    (if(m[2]!!.value.isEmpty()) "null" else m[2]!!.value) +
+                    "${if(m[3]!!.value.isEmpty()) "" else m[3]!!.value})"
         }),
-        //        Similarly, step may be a negative number:
-        //        a[::-1]    # all items in the array, reversed
-        //        a[1::-1]   # the first two items, reversed
-        //        a[:-3:-1]  # the last two items, reversed
-        //        a[-3::-1]  # everything except the last two items, reversed
+
         WordBoundaryRule("True\\b", "true"),
         WordBoundaryRule("False\\b", "false"),
         WordBoundaryRule("def\\b", "fun"),
@@ -114,9 +117,9 @@ object Python2Kotlin: RuleBasedTranscriber() {
         }),
 
         //keep single-character python strings as Kotlin Char literals; this is to prevent the next rule consuming them
-        CapturingRule(Regex("\'[^\']\'"), {s, m -> s + "\'${m[1]!!.value}\'"}),
+        CapturingRule(Regex("\'([^\'])\'"), {s, m -> s + "\'${m[1]!!.value}\'"}),
 
-        CapturingRule(Regex("\'[^\']{2,}"), {s, m ->
+        CapturingRule(Regex("\'([^\']{2,})"), {s, m ->
             currentRuleset = ignoreUntil("[^\\\\]", "\'")
             s + "\'${m[1]!!.value}\'"
         }),
