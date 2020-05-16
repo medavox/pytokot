@@ -57,13 +57,36 @@ object Python2Kotlin: RuleBasedTranscriber() {
         //comment out Python import statements and add a 'TODO' to find Kotlin replacements
         //with
 
-            //switch to string mode when we encounter a single double-quote char (")
+        //switch to string mode when we encounter a single double-quote char (")
         BaseRule(Regex("\\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
             soFar+bracesFromIndents(m[1]!!.value.indentation, m[2]!!.value)
         }, {it[1]!!.value.length}),
-            //todo: need to only consume the number of chars in the line-initial whitespace,
-            //which means we need access the the matchgroup in the context of lettersConsumed
+        //a[-1]    # last item in the array
+        CapturingRule(Regex("\\[(-?\\d+)]"), {s, m ->
+            shims.enable(Shims.Keys.slices)
+            s+"!!.s(${m[1]!!.value})"
+        }),
+        //        a[-2:]   # last two items in the array
+        CapturingRule(Regex("\\[(-?\\d+):]"), {s, m ->
+            shims.enable(Shims.Keys.slices)
+            s+"!!.s(${m[1]!!.value}, null)"
+        }),
+        //        a[:-2]   # everything except the last two items
+        CapturingRule(Regex("\\[:(-?\\d+)]"), {s, m ->
+            shims.enable(Shims.Keys.slices)
+            s+"!!.s(null, ${m[1]!!.value})"
+        }),
 
+        //a[-5:-2]
+        CapturingRule(Regex("\\[(-?\\d+):(-?\\d+)]"), {s, m ->
+            shims.enable(Shims.Keys.slices)
+            s+"!!.s(${m[1]!!.value}, ${m[2]!!.value})"
+        }),
+        //        Similarly, step may be a negative number:
+        //        a[::-1]    # all items in the array, reversed
+        //        a[1::-1]   # the first two items, reversed
+        //        a[:-3:-1]  # the last two items, reversed
+        //        a[-3::-1]  # everything except the last two items, reversed
         WordBoundaryRule("True\\b", "true"),
         WordBoundaryRule("False\\b", "false"),
         WordBoundaryRule("def\\b", "fun"),
@@ -82,17 +105,9 @@ object Python2Kotlin: RuleBasedTranscriber() {
             s+"for ("+m[1]!!.value+") {"
         }),
 
-        WordBoundaryRule(Regex("if ([^:]+):"), { soFar:String, matches:MatchGroupCollection ->
-            "${soFar}if (${matches[1]!!.value}) {"
-        }),
-
-        WordBoundaryRule(Regex("elif ([^:]+):"), { soFar:String, matches:MatchGroupCollection ->
-            "${soFar}else if (${matches[1]!!.value}) {"
-        }),
-
-        WordBoundaryRule(Regex("else ?:"), { soFar:String, matches:MatchGroupCollection ->
-            "${soFar}else {"
-        }),
+        WordBoundaryRule(Regex("if ([^:]+):"), { s, m -> "${s}if (${m[1]!!.value}) {" }),
+        WordBoundaryRule(Regex("elif ([^:]+):"), { s, m -> "${s}else if (${m[1]!!.value}) {" }),
+        WordBoundaryRule("else ?:", "else {" ),
 
         CapturingRule(Regex("u'([^']+)'"), { soFar:String, matches:MatchGroupCollection ->
             "${soFar}\"${matches[1]!!.value}\""
