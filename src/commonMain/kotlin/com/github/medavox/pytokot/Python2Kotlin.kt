@@ -15,9 +15,11 @@ There is also the step value, which can be used with any of the above:
 
 a[start:stop:step] # start through not past stop, by step
 
-The key point to remember is that the :stop value represents the first value that is not in the selected slice. So, the difference between stop and start is the number of elements selected (if step is 1, the default).
+The key point to remember is that the :stop value represents the first value that is not in the selected slice.
+So, the difference between stop and start is the number of elements selected (if step is 1, the default).
 
-The other feature is that start or stop may be a negative number, which means it counts from the end of the array instead of the beginning. So:
+The other feature is that start or stop may be a negative number,
+which means it counts from the end of the array instead of the beginning. So:
 
 a[-1]    # last item in the array
 a[-2:]   # last two items in the array
@@ -30,7 +32,10 @@ a[1::-1]   # the first two items, reversed
 a[:-3:-1]  # the last two items, reversed
 a[-3::-1]  # everything except the last two items, reversed
 
-Python is kind to the programmer if there are fewer items than you ask for. For example, if you ask for a[:-2] and a only contains one element, you get an empty list instead of an error. Sometimes you would prefer the error, so you have to be aware that this may happen.
+Python is kind to the programmer if there are fewer items than you ask for.
+For example, if you ask for a[:-2] and a only contains one element,
+you get an empty list instead of an error.
+Sometimes you would prefer the error, so you have to be aware that this may happen.
 * */
 var tabSize:Int = 4
 object Python2Kotlin: RuleBasedTranscriber() {
