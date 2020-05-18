@@ -27,7 +27,7 @@ fun main() {
 
     val button = document.getElementById("transliterate_button") as HTMLButtonElement
     button.addEventListener("click", { event:Event ->
-        val transcribr = Python2Kotlin
+        val transcribr = Pytokot
         outputTextArea.textContent = transcribr.transcribe(inputTextArea.value)
         //errorsTextArea.textContent = "transcriber: $transcribr"
     })

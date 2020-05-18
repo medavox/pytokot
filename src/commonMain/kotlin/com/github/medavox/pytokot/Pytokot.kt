@@ -38,7 +38,7 @@ you get an empty list instead of an error.
 Sometimes you would prefer the error, so you have to be aware that this may happen.
 * */
 var tabSize:Int = 4
-object Python2Kotlin: RuleBasedTranscriber() {
+object Pytokot: RuleBasedTranscriber() {
     private val shims = Shims()
     private val normalRules:List<BaseRule> = listOf(
         //list comprehensions

@@ -22,7 +22,7 @@ class ArgParser:CliktCommand(name="pytokot") {
             err.println(exception.localizedMessage)
         }*/
         for (file in sources) {
-            val converted = Python2Kotlin.transcribe(file.readText())
+            val converted = Pytokot.transcribe(file.readText())
             val outputFile = File(file.absolutePath+".kt")
             echo("new file:"+file.absolutePath+".kt")
             if(!outputFile.exists() || forceOverwrite == true) {
