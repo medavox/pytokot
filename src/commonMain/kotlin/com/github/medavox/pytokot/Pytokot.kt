@@ -92,7 +92,6 @@ object Pytokot: RuleBasedTranscriber() {
 
         WordBoundaryRule("True\\b", "true"),
         WordBoundaryRule("False\\b", "false"),
-        WordBoundaryRule("def\\b", "fun"),
         //comment out but don't delete 'pass'es,
         WordBoundaryRule("pass\\b", "//pass"),//for indentation-to-closing-brace conversion
         WordBoundaryRule("and\\b", "&&"),
@@ -103,6 +102,16 @@ object Pytokot: RuleBasedTranscriber() {
             shims.enable(stringSize)
             s+m[1]!!.value+".size"
         }),
+
+        RuleBuilder(Regex("def (\\w+)\\((?:(?:([a-zA-Z]\\w+) ?,? ?)+)*\\h*\\):"))
+            .afterWordBoundary()
+            .outputString { s:String, m:MatchGroupCollection ->
+                val args = StringBuilder(s+"fun "+m[1]!!.value+" (")
+                for(i in 2 until m.size) {
+                    args.append(m[i]!!.value+":Any"+if(i < m.size -1)"," else "")
+                }
+                args.toString()+") {"
+            }.build(),
 
         WordBoundaryRule(Regex("for\\h*([^:]+):"), {s, m ->
             s+"for ("+m[1]!!.value+") {"
@@ -115,6 +124,9 @@ object Pytokot: RuleBasedTranscriber() {
         CapturingRule(Regex("u'([^']+)'"), { soFar:String, matches:MatchGroupCollection ->
             "${soFar}\"${matches[1]!!.value}\""
         }),
+
+        //'' -> ""
+        Rule("\'\'", "\"\""),
 
         //keep single-character python strings as Kotlin Char literals; this is to prevent the next rule consuming them
         CapturingRule(Regex("\'([^\'])\'"), {s, m -> s + "\'${m[1]!!.value}\'"}),
@@ -147,10 +159,10 @@ object Pytokot: RuleBasedTranscriber() {
         Regex(closingRegexToDetect))
     fun ignoreUntil(closingRegexToDetect:Regex):List<BaseRule> = ignoreUntil(null, closingRegexToDetect)
     fun ignoreUntil(closingRegexToDetect:String):List<BaseRule> = ignoreUntil(Regex(closingRegexToDetect))
-    fun ignoreUntil(consumedMatcher:Regex?=null, closingRegexToDetect:Regex):List<BaseRule> = listOf(
+    fun ignoreUntil(consumedMatcher:Regex?=null, closingRegexToDetect:Regex, replacement:String?=null):List<BaseRule> = listOf(
         BaseRule(consumedMatcher, closingRegexToDetect, { soFar, matches ->
             currentRuleset = normalRules
-            soFar + matches[0]!!.value
+            soFar + (replacement ?: matches[0]!!.value)
         })
     )
 
