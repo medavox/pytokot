@@ -81,7 +81,7 @@ object Pytokot: RuleBasedTranscriber() {
         RuleBuilder(Regex("def (\\w+)\\((?:(?:([a-zA-Z]\\w+) ?,? ?)+)*\\h*\\):"))
             .afterWordBoundary()
             .outputString { s:String, m:MatchGroupCollection ->
-                val args = StringBuilder(s+"fun "+m[1]!!.value+" (")
+                val args = StringBuilder(s+"fun "+m[1]!!.value+"(")
                 for(i in 2 until m.size) {
                     args.append(m[i]!!.value+":Any"+if(i < m.size -1)"," else "")
                 }
