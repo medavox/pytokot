@@ -9,6 +9,16 @@ For example, if you ask for a[:-2] and a only contains one element,
 you get an empty list instead of an error.
 Sometimes you would prefer the error, so you have to be aware that this may happen.
 * */
+/*TODO: 'var' insertion algorithm idea:
+Have a MutableList<MutableSet<String>>
+The set contains all the variable assignments we've seen before at that indentation level
+The last item in the list is the current indentation
+Append a new MutableSet to the list upon every indentation increase
+Remove the last MutableSet on every indendation decrease
+Every time we encounter a new variable assignment (detected with <name> = <whatever> or similar),
+check if that variable has been seen in this current indentation set, or any of the ones above/before it
+If it's nowhere in the List<Set>, then prepend 'var' to the front, before the variable name
+*/
 var tabSize:Int = 4
 object Pytokot: RuleBasedTranscriber() {
     private val shims = Shims()
