@@ -93,7 +93,9 @@ object Pytokot: RuleBasedTranscriber() {
             .outputString { s:String, m:MatchGroupCollection ->
                 val args = StringBuilder(s+"fun "+m[1]!!.value+"(")
                 for(i in 2 until m.size) {
-                    args.append(m[i]!!.value+":Any"+if(i < m.size -1)"," else "")
+                    if(m[i] != null) {
+                        args.append(m[i]!!.value + ":Any" + if (i < m.size - 1) "," else "")
+                    }
                 }
                 args.toString()+") {"
             }.build(),
