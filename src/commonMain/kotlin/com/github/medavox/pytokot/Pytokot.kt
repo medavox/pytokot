@@ -102,17 +102,14 @@ object Pytokot: RuleBasedTranscriber() {
             s+"for ("+m[1]!!.value+") {"
         }),
 
-        RuleBuilder(Regex("if ([^\\n]+):\\h*(#[^\\n]*)?\\n")).afterWordBoundary()
+        //if and else-if statements
+        RuleBuilder(Regex("(el)?if ([^\\n]+):")).afterWordBoundary()//\h*(#[^\n]*)?\n
             .outputString { s, m ->
-                println("matches: "+m)
-                s+"if (${m[1]!!.value.processWithRules(currentRuleset, copy)}) {"+m[2]?.value ?: ""
-            }.lettersConsumed{
-                    if(it[2] == null || it[2]!!.value.isEmpty()) it[0]!!.value.length else it[1]!!.value.length +3
+                //println("matches: "+m)
+                s+(if(m[1] != null) "else " else "")+//add optional else
+                        "if (${m[2]!!.value.processWithRules(currentRuleset, copy)}) {"
             }.build(),
-        //WordBoundaryRule("if ", "if ("),
-        //WordBoundaryRule(Regex("elif ([^:]+):"), { s, m -> "${s}else if (${m[1]!!.value}) {" }),
-        WordBoundaryRule("elif ", "else if ("),
-        WordBoundaryRule("else ?:", "else {" ),
+        WordBoundaryRule("else ?\\:", "else {" ),
 
         CapturingRule(Regex("u'([^']+)'"), { soFar:String, matches:MatchGroupCollection ->
             "${soFar}\"${matches[1]!!.value}\""
