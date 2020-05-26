@@ -53,7 +53,7 @@ fun String.processDalaiWithRules(rules:()->List<BaseRule>, onNoRuleMatch:(unmatc
 
 fun newCopy(remainingInput:String, unmatchedChars:Int): UnmatchedOutput {
     val unmatched = remainingInput.substring(0, unmatchedChars)
-    return RuleBasedTranscriber.UnmatchedOutput(newWorkingInput = remainingInput.substring(unmatchedChars - 1),
+    return RuleBasedTranscriber.UnmatchedOutput(newWorkingInput = remainingInput.substring(unmatchedChars),
             newConsumed = unmatched,
             output = unmatched
     )
