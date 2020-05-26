@@ -201,7 +201,8 @@ object Pytokot: RuleBasedTranscriber() {
         return count { it == ' ' } + (count { it == '\t' } * tabSize)
     }
 
+
     override fun transcribe(nativeText: String): String {
-        return nativeText.processDalaiWithRules({ currentRuleset}, copy)+shims.getNeededShims()
+        return nativeText.processFasterWithRules({ currentRuleset}, ::newCopy)+shims.getNeededShims()
     }
 }
