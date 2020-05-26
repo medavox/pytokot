@@ -64,53 +64,81 @@ fun String.processFasterWithRules(rules:List<BaseRule>, onNoRuleMatch:(remaining
 fun String.processFasterWithRules(rules:()->List<BaseRule>,
                                   onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
 ) : String {
+    //todo: use a StringBuilder for output instead of replacing the immutable string instance with a newly concatted one
     var out:String = ""
     var processingWord:String = this
     var consumed = ""
     loop@ while(processingWord.isNotEmpty()) {
         //uses the first rule which matches -- so rule order matters
-        //todo: use some fancy collections lambda function to only call .find() and create a MatchResult once
-        val (earliestMatchingRule, earliestMatchingResult) = rules().
+        val matchingRuleResultPairs:List<Pair<BaseRule, MatchResult>> = rules().
             map{rule:BaseRule -> Pair<BaseRule, MatchResult?>(rule, rule.unconsumedMatcher.find(processingWord))}.
             filter {  (rule, result) -> result != null }.//filter out rules that don't match
             sortedBy { (rule, result) -> result!!.range.start }.//sort by earliest match
                     //filter out rules whose consumedMatcher don't 'match':
-            firstOrNull { (rule, result) -> rule.consumedMatcher == null ||// if the rule's consumedMatcher is null,
+            filter { (rule, result) -> rule.consumedMatcher == null ||// if the rule's consumedMatcher is null,
                     // that counts as matching:
                     //rules that don't specify a consumedMatcher aren't checked against it
                     //if it has been specified by this rule, it has to match at the end of the already-consumed string
                     (rule.consumedMatcher as Regex).findAll(consumed).lastOrNull()?.range?.endInclusive == consumed.length-1
-            }?: //else, if it's null:
+            }.map { Pair(it.first, it.second!!) }//de-nulltype the match result
+
+
+        //else, if it's null:
                 //no rules matched anywhere, at all
                 //(no rules match before the end of the remaining input)
                 //this means the rest of the input "doesn't match"
 
                 //so call the lambda on the remaining string
-                return onNoRuleMatch(processingWord, processingWord.length).output(out)
-
-        if(Pytokot.wasInsideString || earliestMatchingRule in stringRules) {
+        if(matchingRuleResultPairs.isEmpty()) {
+            return onNoRuleMatch(processingWord, processingWord.length).output(out)
+        }
+/*        if(Pytokot.wasInsideString || earliestMatchingRule in stringRules) {
             println(if(Pytokot.wasInsideString){"END  "}else{"START"}+ ": |${processingWord.subSequence(
                     0,
                     kotlin.math.min(16, processingWord.length)
             )}|\n")
-        }
-        out = earliestMatchingRule.outputString(out, earliestMatchingResult!!.groups)
-        //number of letters consumed is the match length, unless explicitly specified
-        val actualLettersConsumed = earliestMatchingRule.lettersConsumed?.invoke(earliestMatchingResult.groups) ?: earliestMatchingResult.value.length
-        if(actualLettersConsumed > 0) {
+        }*/
+        fur({0},
+            {
+                val (rule, result) = matchingRuleResultPairs[it]
+                rule.lettersConsumed?.invoke(result.groups) ?: result.value.length == 0 && it < matchingRuleResultPairs.size
+            },
+            {it+1}
+        ) { i ->
+            println("i:"+i)
+            val (earliestMatchingRule, earliestMatchingResult) = matchingRuleResultPairs[i]
+            //call the lambda on any unmatched characters before the earliest match
+            if(earliestMatchingResult.range.start > 0) {
+                val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.start)
+                processingWord = unmatchedOutput.newWorkingInput
+                consumed += unmatchedOutput.newConsumed
+                out = unmatchedOutput.output(out)
+            }
+            //add the rule's replacement
+            out = earliestMatchingRule.outputString(out, earliestMatchingResult.groups)
+            //number of letters consumed is the match length, unless explicitly specified
+            val actualLettersConsumed = earliestMatchingRule.lettersConsumed?.invoke(earliestMatchingResult.groups) ?: earliestMatchingResult.value.length
+            println("actual letters consumed: $actualLettersConsumed")
             consumed += processingWord.substring(0, actualLettersConsumed)
             processingWord = processingWord.substring(actualLettersConsumed)
-            //continue@loop//fixme:is this actually necessary after all?
+            //keep processing rules until we get one whose actualLettersConsumed is > 0
+            //otherwise we get stuck in a loop reprocessing this same zero-consuming rule forever
         }
 
-        //call the lambda on any unmatched characters before the earliest match
-        if(earliestMatchingResult.range.start > 0) {
-            val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.start)
-            processingWord = unmatchedOutput.newWorkingInput
-            consumed += unmatchedOutput.newConsumed
-            out = unmatchedOutput.output(out)
-        }
+        println("output length: ${out.length}")
+        //println("processingWord length: ${out.length}")
     }
     //System.out.println("consumed: $consumed")
     return out
+}
+fun <T> fur(initializer: () -> T,
+            loopCheck:(T) -> Boolean,
+            update:(T) -> T,
+            loopBody:(T) -> Unit
+) {
+    var index:T = initializer()
+    while(loopCheck(index)) {
+        loopBody(index)
+        index = update(index)
+    }
 }
