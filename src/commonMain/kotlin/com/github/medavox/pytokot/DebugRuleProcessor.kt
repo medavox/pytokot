@@ -1,6 +1,6 @@
 package com.github.medavox.pytokot
 
-import com.github.medavox.pytokot.Pytokot.jeff
+import com.github.medavox.pytokot.Pytokot.stringRules
 import com.github.medavox.transcribers.BaseRule
 import com.github.medavox.transcribers.RuleBasedTranscriber
 
@@ -24,12 +24,11 @@ fun String.processDalaiWithRules(rules:()->List<BaseRule>, onNoRuleMatch:(unmatc
 
             //if the rule matches the start of the remaining string, and the end of the consumed string
             if(consumedMatches && unconsumedMatch?.range?.start == 0) {
-                if(Pytokot.insideString || rule == jeff) {
-                    println(
-                        "|${unconsumedMatch.groupValues[0]}| near |${processingWord.subSequence(
+                if(Pytokot.wasInsideString || rule in stringRules) {
+                    println(if(Pytokot.wasInsideString){"END  "}else{"START"}+ ": |${processingWord.subSequence(
                             0,
                             kotlin.math.min(16, processingWord.length)
-                        )}| "+if(Pytokot.insideString) "STARTS STRING" else "ENDS STRING")
+                        )}|\n")
                 }
                 out = rule.outputString(out, unconsumedMatch.groups)
                 //number of letters consumed is the match length, unless explicitly specified

@@ -21,7 +21,34 @@ If it's nowhere in the List<Set>, then prepend 'var' to the front, before the va
 */
 var tabSize:Int = 4
 object Pytokot: RuleBasedTranscriber() {
+    var wasInsideString = false
     private val shims = Shims()
+    val stringRules = listOf(
+
+        //'' -> ""
+        Rule("\'\'", "\"\""),
+
+        //keep single-character python strings as Kotlin Char literals; this is to prevent the next rule consuming them
+        CapturingRule(Regex("\'([^\'])\'"), {s, m -> s + "\'${m[1]!!.value}\'"}),
+
+
+/*        CapturingRule(Regex("\'([^\']{2,})"), {s, m ->
+            currentRuleset = ignoreUntil("[^\\\\]", "\'")
+            s + "\'${m[1]!!.value}\'"
+        }),*/
+
+        //this has to occur before the single double-quote rule
+        CapturingRule(Regex("\"\"\""), {s:String, m:MatchGroupCollection ->
+            wasInsideString = true
+            currentRuleset = ignoreUntil("\"\"\"")
+            s+m[0]!!.value
+        }),
+
+        CapturingRule(Regex("\""), { soFar:String, _ ->
+        wasInsideString = true
+        currentRuleset = ignoreUntil(Regex("[^\\\\]"), Regex("\""))
+        soFar+"\""})
+    )
     private val normalRules:List<BaseRule> = listOf(
         //list comprehensions
         //class defs
@@ -117,44 +144,19 @@ object Pytokot: RuleBasedTranscriber() {
             "${soFar}\"${matches[1]!!.value}\""
         }),
 
-        //'' -> ""
-        Rule("\'\'", "\"\""),
-
-        //keep single-character python strings as Kotlin Char literals; this is to prevent the next rule consuming them
-        CapturingRule(Regex("\'([^\'])\'"), {s, m -> s + "\'${m[1]!!.value}\'"}),
-
-        CapturingRule(Regex("\'([^\']{2,})"), {s, m ->
-            currentRuleset = ignoreUntil("[^\\\\]", "\'")
-            s + "\'${m[1]!!.value}\'"
-        }),
-
-        //this has to occur before the single double-quote rule
-        CapturingRule(Regex("\"\"\""), {s:String, m:MatchGroupCollection ->
-            currentRuleset = ignoreUntil("\"\"\"")
-            s+m[0]!!.value
-        }),
-
-        CapturingRule(Regex("\""), { soFar:String, m:MatchGroupCollection ->
-            //println("entering string mode")
-            currentRuleset = ignoreUntil("[^\\\\]", "\"")
-            soFar+"\""}),
-
         //fallback rule: end-of-line colons -> curly braces
-        Rule("\\h*:\\h*\\n", " {\n"),
+        //Rule("\\h*:\\h*\\n", " {\n"),
 
         //switch to comment mode when we encounter "#" (and convert it to a kotlin // comment)
-        RevisingRule("#", { currentRuleset = ignoreUntil("\n"); "$it//"})//don't consume this, so the mode-switch rule below can match
-
-    )
-    fun ignoreUntil(consumedMatcher:String?=null, closingRegexToDetect:String):
-            List<BaseRule> = ignoreUntil(if(consumedMatcher != null) Regex(consumedMatcher) else null,
-        Regex(closingRegexToDetect))
+        RevisingRule("#", { currentRuleset = ignoreUntil("\n"); "$it//"})
+    )+ stringRules
     fun ignoreUntil(closingRegexToDetect:Regex):List<BaseRule> = ignoreUntil(null, closingRegexToDetect)
     fun ignoreUntil(closingRegexToDetect:String):List<BaseRule> = ignoreUntil(Regex(closingRegexToDetect))
     fun ignoreUntil(consumedMatcher:Regex?=null, closingRegexToDetect:Regex, replacement:String?=null):List<BaseRule> = listOf(
-        BaseRule(consumedMatcher, closingRegexToDetect, { soFar, matches ->
+        BaseRule(consumedMatcher, closingRegexToDetect, { s:String, m:MatchGroupCollection ->
             currentRuleset = normalRules
-            soFar + (replacement ?: matches[0]!!.value)
+            wasInsideString = false
+            s + (replacement ?: m[0]!!.value)
         })
     )
 
@@ -200,6 +202,6 @@ object Pytokot: RuleBasedTranscriber() {
     }
 
     override fun transcribe(nativeText: String): String {
-        return nativeText.processWithRules({ currentRuleset}, copy)+shims.getNeededShims()
+        return nativeText.processDalaiWithRules({ currentRuleset}, copy)+shims.getNeededShims()
     }
 }
