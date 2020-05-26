@@ -89,12 +89,14 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
                 //so call the lambda on the remaining string
                 return onNoRuleMatch(processingWord, processingWord.length).output(out)
 
-        if(Pytokot.wasInsideString || earliestMatchingRule in stringRules) {
+/*        if(Pytokot.wasInsideString || earliestMatchingRule in stringRules) {
             println(if(Pytokot.wasInsideString){"END  "}else{"START"}+ ": |${processingWord.subSequence(
                     0,
                     kotlin.math.min(16, processingWord.length)
             )}|\n")
-        }
+        }*/
+
+        //println("rule: $earliestMatchingRule ; result: ${earliestMatchingResult?.groupValues}")
         //call the lambda on any unmatched characters before the earliest match
         if(earliestMatchingResult!!.range.start > 0) {
             val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.start)
@@ -102,6 +104,10 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
             consumed += unmatchedOutput.newConsumed
             out = unmatchedOutput.output(out)
             alreadyRunRules.removeAll { true }
+            println("matched |${earliestMatchingResult.groupValues}| near: |${processingWord.subSequence(
+                    0,
+                    kotlin.math.min(16, processingWord.length)
+            )}|\ninput: ${processingWord.length}; consumed: ${consumed.length}; output: ${out.length}")
         }else {//no characters were consumed
             //add the just-processed rule to the list of rules that have already been run, so we know not to run it again on the same input
             alreadyRunRules.add(earliestMatchingRule)
@@ -113,7 +119,6 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
         if(actualLettersConsumed > 0) {
             consumed += processingWord.substring(0, actualLettersConsumed)
             processingWord = processingWord.substring(actualLettersConsumed)
-            //continue@loop//fixme:is this actually necessary after all?
         }
     }
     //System.out.println("consumed: $consumed")
