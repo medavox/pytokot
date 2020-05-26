@@ -70,35 +70,33 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
     loop@ while(processingWord.isNotEmpty()) {
         //uses the first rule which matches -- so rule order matters
         //todo: use some fancy collections lambda function to only call .find() and create a MatchResult once
-        val earliestMatchingRule: BaseRule = rules().
-                //filter out rules that don't match
-        filter { rule -> rule.unconsumedMatcher.find(processingWord) != null }.
-                //sort by earliest match
-        sortedBy { rule:BaseRule -> rule.unconsumedMatcher.find(processingWord)!!.range.start }.
-                //filter out rules whose consumedMatcher don't 'match'
-        filter { rule -> rule.consumedMatcher == null ||// if it's null, that counts as matching:
-                //rules that don't specify a consumedMatcher aren't checked against it
-
-                //if it has been specified by this rule, it has to match at the end of the already-consumed string
-                (rule.consumedMatcher as Regex).findAll(consumed).lastOrNull()?.range?.endInclusive == consumed.length-1
-        }.firstOrNull()//if it's null:
-                ?: //no rules matched anywhere, at all
+        val (earliestMatchingRule, earliestMatchingResult) = rules().
+            map{rule:BaseRule -> Pair<BaseRule, MatchResult?>(rule, rule.unconsumedMatcher.find(processingWord))}.
+            filter {  (rule, result) -> result != null }.//filter out rules that don't match
+            sortedBy { (rule, result) -> result!!.range.start }.//sort by earliest match
+                    //filter out rules whose consumedMatcher don't 'match':
+            firstOrNull { (rule, result) -> rule.consumedMatcher == null ||// if the rule's consumedMatcher is null,
+                    // that counts as matching:
+                    //rules that don't specify a consumedMatcher aren't checked against it
+                    //if it has been specified by this rule, it has to match at the end of the already-consumed string
+                    (rule.consumedMatcher as Regex).findAll(consumed).lastOrNull()?.range?.endInclusive == consumed.length-1
+            }?: //else, if it's null:
+                //no rules matched anywhere, at all
                 //(no rules match before the end of the remaining input)
                 //this means the rest of the input "doesn't match"
 
                 //so call the lambda on the remaining string
                 return onNoRuleMatch(processingWord, processingWord.length).output(out)
 
-        val unconsumedMatch = earliestMatchingRule.unconsumedMatcher.find(processingWord)
         if(Pytokot.wasInsideString || earliestMatchingRule in stringRules) {
             println(if(Pytokot.wasInsideString){"END  "}else{"START"}+ ": |${processingWord.subSequence(
                     0,
                     kotlin.math.min(16, processingWord.length)
             )}|\n")
         }
-        out = earliestMatchingRule.outputString(out, unconsumedMatch!!.groups)
+        out = earliestMatchingRule.outputString(out, earliestMatchingResult!!.groups)
         //number of letters consumed is the match length, unless explicitly specified
-        val actualLettersConsumed = earliestMatchingRule.lettersConsumed?.invoke(unconsumedMatch.groups) ?: unconsumedMatch.value.length
+        val actualLettersConsumed = earliestMatchingRule.lettersConsumed?.invoke(earliestMatchingResult.groups) ?: earliestMatchingResult.value.length
         if(actualLettersConsumed > 0) {
             consumed += processingWord.substring(0, actualLettersConsumed)
             processingWord = processingWord.substring(actualLettersConsumed)
@@ -106,8 +104,8 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
         }
 
         //call the lambda on any unmatched characters before the earliest match
-        if(unconsumedMatch.range.start > 0) {
-            val unmatchedOutput = onNoRuleMatch(processingWord, unconsumedMatch.range.start)
+        if(earliestMatchingResult.range.start > 0) {
+            val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.start)
             processingWord = unmatchedOutput.newWorkingInput
             consumed += unmatchedOutput.newConsumed
             out = unmatchedOutput.output(out)
