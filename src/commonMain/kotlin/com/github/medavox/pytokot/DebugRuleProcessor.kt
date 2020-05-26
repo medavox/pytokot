@@ -98,31 +98,36 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
                     kotlin.math.min(16, processingWord.length)
             )}|\n")
         }*/
-        fur({0},
-            {
-                val (rule, result) = matchingRuleResultPairs[it]
-                rule.lettersConsumed?.invoke(result.groups) ?: result.value.length == 0 && it < matchingRuleResultPairs.size
-            },
-            {it+1}
-        ) { i ->
-            println("i:"+i)
-            val (earliestMatchingRule, earliestMatchingResult) = matchingRuleResultPairs[i]
+        var i = 0
+        //gotta update the stored matched of all the other rules too, once we've executed a rule
+        var newMatchResult = matchingRuleResultPairs[i].second
+        while(true) {
+            println("i:$i")
+            val (rule, _) = matchingRuleResultPairs[i]
             //call the lambda on any unmatched characters before the earliest match
-            if(earliestMatchingResult.range.start > 0) {
-                val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.start)
+            if(newMatchResult.range.first > 0) {
+                val unmatchedOutput = onNoRuleMatch(processingWord, newMatchResult.range.start)
                 processingWord = unmatchedOutput.newWorkingInput
                 consumed += unmatchedOutput.newConsumed
                 out = unmatchedOutput.output(out)
             }
             //add the rule's replacement
-            out = earliestMatchingRule.outputString(out, earliestMatchingResult.groups)
+            out = rule.outputString(out, newMatchResult.groups)
             //number of letters consumed is the match length, unless explicitly specified
-            val actualLettersConsumed = earliestMatchingRule.lettersConsumed?.invoke(earliestMatchingResult.groups) ?: earliestMatchingResult.value.length
+            val actualLettersConsumed = rule.lettersConsumed?.invoke(newMatchResult.groups) ?: newMatchResult.value.length
             println("actual letters consumed: $actualLettersConsumed")
             consumed += processingWord.substring(0, actualLettersConsumed)
             processingWord = processingWord.substring(actualLettersConsumed)
             //keep processing rules until we get one whose actualLettersConsumed is > 0
             //otherwise we get stuck in a loop reprocessing this same zero-consuming rule forever
+           if(rule.lettersConsumed?.invoke(newMatchResult.groups) ?: newMatchResult.value.length == 0 && i < matchingRuleResultPairs.size) {
+               break
+           }else {
+               i++
+               //recalculate the match result for the next rule,
+               //as this one may have changed processingWord
+               newMatchResult = matchingRuleResultPairs[i].first.
+           }
         }
 
         println("output length: ${out.length}")
