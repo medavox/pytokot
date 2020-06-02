@@ -67,6 +67,7 @@ object Pytokot: RuleBasedTranscriber() {
         //with
 
         //switch to string mode when we encounter a single double-quote char (")
+        //fixme: consider replacing \n with ^
         BaseRule(Regex("\\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
             soFar+bracesFromIndents(m[1]!!.value.indentation, m[2]!!.value)
         }, {it[1]!!.value.length}),
@@ -161,7 +162,7 @@ object Pytokot: RuleBasedTranscriber() {
     )
 
     private var currentRuleset = normalRules
-
+    private var lineNumber = 0
     private val openIndents = mutableListOf<Int>()
     /**if indentation spaces are less than last time,
     add a line before it with a "}" on it
@@ -169,6 +170,8 @@ object Pytokot: RuleBasedTranscriber() {
     depending on if the non-blank line has less indentation than the last one*/
     private fun bracesFromIndents(newIndentation:Int, debugLineHint:String=""):String {
         //EUREKA: the line that triggers this algo IS ALSO A LINE WITH ITS OWN INDENT TO BE ADDED
+        lineNumber++
+        //println("called braces function on line $lineNumber : \"$debugLineHint\"")
         val debug = false
         //val debug = (newIndentation !in openIndents)
         if (debug) println( "FOR LINE STARTING \"$debugLineHint\": ")
@@ -203,7 +206,7 @@ object Pytokot: RuleBasedTranscriber() {
 
 
     override fun transcribe(nativeText: String): String {
-        //return nativeText.processFasterWithRules({ currentRuleset}, ::newCopy)+shims.getNeededShims()
-        return nativeText.processDalaiWithRules({ currentRuleset}, copy)+shims.getNeededShims()
+        return nativeText.processFasterWithRules({ currentRuleset}, ::newCopy)+shims.getNeededShims()
+        //return nativeText.processDalaiWithRules({ currentRuleset}, copy)+shims.getNeededShims()
     }
 }

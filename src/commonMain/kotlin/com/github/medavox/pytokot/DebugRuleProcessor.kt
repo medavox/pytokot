@@ -70,24 +70,46 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
     val alreadyRunRules = mutableSetOf<BaseRule>()
     loop@ while(processingWord.isNotEmpty()) {
         //uses the first rule which matches -- so rule order matters
-        //todo: use some fancy collections lambda function to only call .find() and create a MatchResult once
-        val (earliestMatchingRule, earliestMatchingResult) = (rules()-alreadyRunRules).
-            map{rule:BaseRule -> Pair<BaseRule, MatchResult?>(rule, rule.unconsumedMatcher.find(processingWord))}.
-            filter {  (rule, result) -> result != null }.//filter out rules that don't match
-            sortedBy { (rule, result) -> result!!.range.start }.//sort by earliest match
-                    //filter out rules whose consumedMatcher don't 'match':
-            firstOrNull { (rule, result) -> rule.consumedMatcher == null ||// if the rule's consumedMatcher is null,
-                    // that counts as matching:
-                    //rules that don't specify a consumedMatcher aren't checked against it
-                    //if it has been specified by this rule, it has to match at the end of the already-consumed string
-                    (rule.consumedMatcher as Regex).findAll(consumed).lastOrNull()?.range?.endInclusive == consumed.length-1
-            }?: //else, if it's null:
-                //no rules matched anywhere, at all
-                //(no rules match before the end of the remaining input)
-                //this means the rest of the input "doesn't match"
+        //use some fancy collections lambda function to only call .find() and create a MatchResult once
+        val (earliestMatchingRule, earliestMatchingResult) = (rules() - alreadyRunRules).
+            map { rule: BaseRule -> Pair<BaseRule, MatchResult?>(rule, rule.unconsumedMatcher.find(processingWord)) }.
+            filter { (rule, result) ->
+                //EUREKA FIXME: we're checking the consumed matcher against the consumed chars,
+                //BUT that isn't the most recent character before where the unconsumed bit matches (when they should be),
+                //because we have all these unmatched chars we're skipping over, before where the rules matches
+                //the sollution? drop this whole processingWord/consumedString bullshit,
+                //and just operate directly on the input string with an index position
+                val consumedMatches = rule.consumedMatcher == null ||
+                        rule.consumedMatcher?.findAll(consumed)?.lastOrNull()?.range?.endInclusive == consumed.length - 1
+                if(rule.consumedMatcher.toString() == "\\n") {
+                    println("consumed matcher \"${rule.consumedMatcher.toString()}\" matches: $consumedMatches")
+                    println("\tits unconsumedMatcher: "+rule.unconsumedMatcher.toString())
+                    println("\tfor input beginning: ${processingWord.subSequence(0, kotlin.math.min(16, processingWord.length))}\n")
+                }
+                result != null && consumedMatches
+                //see no matched input
+                // if the rule's consumedMatcher is null,
+                // that counts as matching:
+                //rules that don't specify a consumedMatcher aren't checked against it
+                        //if it has been specified by this rule, it has to match at the end of the already-consumed string
 
-                //so call the lambda on the remaining string
-                return onNoRuleMatch(processingWord, processingWord.length).output(out)
+                /*if (b) {
+                                    println("consumed \"$rule\" matches: |${processingWord.subSequence(
+                                            0,
+                                            kotlin.math.min(16, processingWord.length)
+                                    )}|\n")
+                }*/
+            }.//filter out rules that don't match
+            sortedBy { (rule, result) -> result!!.range.start }.//sort by earliest match
+                //filter out rules whose consumedMatcher don't 'match':
+                //need to get the list of rules after each rule!
+            firstOrNull() ?: //else, if it's null:
+            //no rules matched anywhere, at all
+            //(no rules match before the end of the remaining input)
+            //this means the rest of the input "doesn't match"
+
+            //so call the lambda on the remaining string
+            return onNoRuleMatch(processingWord, processingWord.length).output(out)
 
 /*        if(Pytokot.wasInsideString || earliestMatchingRule in stringRules) {
             println(if(Pytokot.wasInsideString){"END  "}else{"START"}+ ": |${processingWord.subSequence(
@@ -96,21 +118,27 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
             )}|\n")
         }*/
 
+        //there are actually 2 separate input-consumption steps here, one after the other:
+        //1. process any non-matching chars which precede the rule match by passing it to the provided function,
+        //2. consume the input that the matching rule actually matched
+
         //println("rule: $earliestMatchingRule ; result: ${earliestMatchingResult?.groupValues}")
         //call the lambda on any unmatched characters before the earliest match
+
+        val ruleConsumptionLog = StringBuilder("(unmatched{|}consumed): (")
         if(earliestMatchingResult!!.range.start > 0) {
+            ///todo: add the OnNoMatch chars to actualLettersConsumed?
             val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.start)
             processingWord = unmatchedOutput.newWorkingInput
             consumed += unmatchedOutput.newConsumed
             out = unmatchedOutput.output(out)
+            //println("already run rules before emptying: ${alreadyRunRules.size}: $alreadyRunRules")
             alreadyRunRules.removeAll { true }
-            println("matched |${earliestMatchingResult.groupValues}| near: |${processingWord.subSequence(
+/*            println("matched |${earliestMatchingResult.groupValues}| near: |${processingWord.subSequence(
                     0,
                     kotlin.math.min(16, processingWord.length)
-            )}|\ninput: ${processingWord.length}; consumed: ${consumed.length}; output: ${out.length}")
-        }else {//no characters were consumed
-            //add the just-processed rule to the list of rules that have already been run, so we know not to run it again on the same input
-            alreadyRunRules.add(earliestMatchingRule)
+            )}|\ninput: ${processingWord.length}; consumed: ${consumed.length}; output: ${out.length}")*/
+            println("unmatched chars skipped (${earliestMatchingResult!!.range.start - 1}): "+processingWord.substring(0, earliestMatchingResult!!.range.start))
         }
 
         out = earliestMatchingRule.outputString(out, earliestMatchingResult.groups)
@@ -119,6 +147,10 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
         if(actualLettersConsumed > 0) {
             consumed += processingWord.substring(0, actualLettersConsumed)
             processingWord = processingWord.substring(actualLettersConsumed)
+            alreadyRunRules.removeAll { true }
+        } else {//no characters were consumed
+            //add the just-processed rule to the list of rules that have already been run, so we know not to run it again on the same input
+            alreadyRunRules.add(earliestMatchingRule)
         }
     }
     //System.out.println("consumed: $consumed")
