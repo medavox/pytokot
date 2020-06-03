@@ -6,8 +6,8 @@ import com.github.medavox.transcribers.RuleBasedTranscriber.*
 
 
 fun String.processDalaiWithRules(rules:List<BaseRule>, onNoRuleMatch:(unmatched:String) -> UnmatchedOutput) : String =
-    this.processDalaiWithRules({rules}, onNoRuleMatch)
-fun String.processDalaiWithRules(rules:()->List<BaseRule>, onNoRuleMatch:(unmatched:String) -> UnmatchedOutput) : String {
+    this.processDalaiWithDynamicRules({rules}, onNoRuleMatch)
+fun String.processDalaiWithDynamicRules(rules:()->List<BaseRule>, onNoRuleMatch:(unmatched:String) -> UnmatchedOutput) : String {
     var out:String = ""
     var processingWord:String = this
     var consumed = ""
@@ -51,9 +51,9 @@ fun String.processDalaiWithRules(rules:()->List<BaseRule>, onNoRuleMatch:(unmatc
 }
 
 fun String.processFasterWithRules(rules:List<BaseRule>, onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
-) : String = this.processFasterWithRules({rules}, onNoRuleMatch)
-fun String.processFasterWithRules(rules:()->List<BaseRule>,
-                                  onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
+) : String = this.processFasterWithDynamicRules({rules}, onNoRuleMatch)
+fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
+                                         onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
 ) : String {
     var out:String = ""
     var i = 0
