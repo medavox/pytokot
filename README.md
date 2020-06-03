@@ -2,6 +2,10 @@
 
 A semi-automatic<sup>[1](#semiauto)</sup> Python-to-Kotlin converter.
 
+As-yet unfinished: still under heavy development.
+
+See [these comments](https://github.com/medavox/pytokot/blob/f6a1d2097bb47e8cfc983552fd1c709e606ef57e/src/commonMain/kotlin/com/github/medavox/pytokot/Pytokot.kt#L53) for a list of planned-but-unimplemented features, as of 3 June 2020.
+
 * [online](https://kotlinguistics.github.io/pytokot)
 * commandline app
 * local webpage
