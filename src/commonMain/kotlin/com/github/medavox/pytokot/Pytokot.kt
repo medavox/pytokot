@@ -21,6 +21,9 @@ If it's nowhere in the List<Set>, then prepend 'var' to the front, before the va
 */
 var tabSize:Int = 4
 object Pytokot: RuleBasedTranscriber() {
+    val man: (String.(rules:()->List<BaseRule>, onNoRuleMatch:NoMatchHandler) -> String) = String::processFasterWithDynamicRules
+    fun String.ruleProcess(riwls:()->List<BaseRule>, onNoRuleMatch:NoMatchHandler): String = man(riwls, onNoRuleMatch)
+    fun String.ruleProcess(riwlz:List<BaseRule>, onNoRuleMatch:NoMatchHandler): String = man({riwlz}, onNoRuleMatch)
     var wasInsideString = false
     private val shims = Shims()
     val stringRules = listOf(
@@ -137,7 +140,7 @@ object Pytokot: RuleBasedTranscriber() {
             .outputString { s, m ->
                 //println("matches: "+m)
                 s+(if(m[1] != null) "else " else "")+//add optional else
-                        "if (${m[2]!!.value.processWithRules(currentRuleset, copy)}) {"
+                        "if (${m[2]!!.value.ruleProcess(currentRuleset, copy)}) {"
             }.build(),
         WordBoundaryRule("else ?\\:", "else {" ),
 
@@ -206,7 +209,7 @@ object Pytokot: RuleBasedTranscriber() {
 
 
     override fun transcribe(nativeText: String): String {
-        return nativeText.processFasterWithRules({ currentRuleset}, copy)+shims.getNeededShims()
+        return nativeText.ruleProcess({ currentRuleset}, copy)+shims.getNeededShims()
         //return nativeText.processDalaiWithRules({ currentRuleset}, copy)+shims.getNeededShims()
     }
 }
