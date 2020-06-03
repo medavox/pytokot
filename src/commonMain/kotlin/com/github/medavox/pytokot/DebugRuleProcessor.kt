@@ -2,7 +2,6 @@ package com.github.medavox.pytokot
 
 import com.github.medavox.pytokot.Pytokot.stringRules
 import com.github.medavox.transcribers.BaseRule
-import com.github.medavox.transcribers.RuleBasedTranscriber
 import com.github.medavox.transcribers.RuleBasedTranscriber.*
 
 
@@ -43,20 +42,12 @@ fun String.processDalaiWithRules(rules:()->List<BaseRule>, onNoRuleMatch:(unmatc
         }
         //no rule matched; call the lambda!
         val unmatchedOutput = onNoRuleMatch(processingWord)
-        processingWord = unmatchedOutput.newWorkingInput
-        consumed += unmatchedOutput.newConsumed
+        processingWord = processingWord.substring(unmatchedOutput.indexAdvance)
+        consumed += processingWord.substring(0, unmatchedOutput.indexAdvance)
         out = unmatchedOutput.output(out)
     }
     //System.out.println("consumed: $consumed")
     return out
-}
-
-fun newCopy(remainingInput:String, unmatchedChars:Int): UnmatchedOutput {
-    val unmatched = remainingInput.substring(0, unmatchedChars)
-    return RuleBasedTranscriber.UnmatchedOutput(newWorkingInput = remainingInput.substring(unmatchedChars),
-            newConsumed = unmatched,
-            output = unmatched
-    )
 }
 
 fun String.processFasterWithRules(rules:List<BaseRule>, onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
@@ -65,10 +56,10 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
                                   onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
 ) : String {
     var out:String = ""
-    var processingWord:String = this
-    var consumed = ""
+    var i = 0
     val alreadyRunRules = mutableSetOf<BaseRule>()
-    loop@ while(processingWord.isNotEmpty()) {
+    loop@ while(i < this.length) {
+        val processingWord = this.substring(i, this.length)
         //uses the first rule which matches -- so rule order matters
         //use some fancy collections lambda function to only call .find() and create a MatchResult once
         val (earliestMatchingRule, earliestMatchingResult) = (rules() - alreadyRunRules).
@@ -79,14 +70,15 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
                 //because we have all these unmatched chars we're skipping over, before where the rules matches
                 //the sollution? drop this whole processingWord/consumedString bullshit,
                 //and just operate directly on the input string with an index position
-                val consumedMatches = rule.consumedMatcher == null ||
-                        rule.consumedMatcher?.findAll(consumed)?.lastOrNull()?.range?.endInclusive == consumed.length - 1
+                val doesMatch = result != null && (
+                        rule.consumedMatcher == null ||
+                        rule.consumedMatcher?.findAll(this.substring(0, result.range.start))?.lastOrNull()?.range?.endInclusive == result.range.start-1 )
                 if(rule.consumedMatcher.toString() == "\\n") {
-                    println("consumed matcher \"${rule.consumedMatcher.toString()}\" matches: $consumedMatches")
+                    println("consumed matcher \"${rule.consumedMatcher.toString()}\" matches: $doesMatch")
                     println("\tits unconsumedMatcher: "+rule.unconsumedMatcher.toString())
                     println("\tfor input beginning: ${processingWord.subSequence(0, kotlin.math.min(16, processingWord.length))}\n")
                 }
-                result != null && consumedMatches
+                doesMatch
                 //see no matched input
                 // if the rule's consumedMatcher is null,
                 // that counts as matching:
@@ -127,10 +119,8 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
 
         val ruleConsumptionLog = StringBuilder("(unmatched{|}consumed): (")
         if(earliestMatchingResult!!.range.start > 0) {
-            ///todo: add the OnNoMatch chars to actualLettersConsumed?
             val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.start)
-            processingWord = unmatchedOutput.newWorkingInput
-            consumed += unmatchedOutput.newConsumed
+            i += unmatchedOutput.indexAdvance
             out = unmatchedOutput.output(out)
             //println("already run rules before emptying: ${alreadyRunRules.size}: $alreadyRunRules")
             alreadyRunRules.removeAll { true }
@@ -145,8 +135,7 @@ fun String.processFasterWithRules(rules:()->List<BaseRule>,
         //number of letters consumed is the match length, unless explicitly specified
         val actualLettersConsumed = earliestMatchingRule.lettersConsumed?.invoke(earliestMatchingResult.groups) ?: earliestMatchingResult.value.length
         if(actualLettersConsumed > 0) {
-            consumed += processingWord.substring(0, actualLettersConsumed)
-            processingWord = processingWord.substring(actualLettersConsumed)
+            i += actualLettersConsumed
             alreadyRunRules.removeAll { true }
         } else {//no characters were consumed
             //add the just-processed rule to the list of rules that have already been run, so we know not to run it again on the same input
