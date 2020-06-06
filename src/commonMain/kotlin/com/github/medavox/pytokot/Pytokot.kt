@@ -29,10 +29,10 @@ object Pytokot: RuleBasedTranscriber() {
     val stringRules = listOf(
 
         //'' -> ""
-        Rule("\'\'", "\"\""),
+        Rule("\'\'", "\"\"", null, "empty string"),
 
         //keep single-character python strings as Kotlin Char literals; this is to prevent the next rule consuming them
-        CapturingRule(Regex("\'([^\'])\'"), {s, m -> s + "\'${m[1]!!.value}\'"}),
+        CapturingRule(Regex("\'([^\'])\'"), {s, m -> s + "\'${m[1]!!.value}\'"}, null, "single-char python string as kotlin Char"),
 
 
 /*        CapturingRule(Regex("\'([^\']{2,})"), {s, m ->
@@ -45,12 +45,12 @@ object Pytokot: RuleBasedTranscriber() {
             wasInsideString = true
             currentRuleset = ignoreUntil("\"\"\"")
             s+m[0]!!.value
-        }),
+        }, null, "begin ignore multiline string"),
 
         CapturingRule(Regex("\""), { soFar:String, _ ->
         wasInsideString = true
         currentRuleset = ignoreUntil(Regex("[^\\\\]"), Regex("\""))
-        soFar+"\""})
+        soFar+"\""}, null, "begin ignore string contents")
     )
     private val normalRules:List<BaseRule> = listOf(
         //list comprehensions
@@ -73,14 +73,14 @@ object Pytokot: RuleBasedTranscriber() {
         //fixme: consider replacing \n with ^
         BaseRule(Regex("\\n"), Regex("(\\h*)(\\S+)"), { soFar:String, m:MatchGroupCollection ->
             soFar+bracesFromIndents(m[1]!!.value.indentation, m[2]!!.value)
-        }, {it[1]!!.value.length}),
+        }, {it[1]!!.value.length}, "closing braces"),
 
         //slice: one arg
         //a[-1]    # last item in the array
         CapturingRule(Regex("\\[(-?\\d+)]"), {s, m ->
             shims.enable(Shims.Keys.slices)
             s+"!!.s(${m[1]!!.value})"
-        }),
+        }, null, "one-arg slice"),
 
         //slice: two args
         //a[-2:]   # last two items in the array
@@ -90,7 +90,7 @@ object Pytokot: RuleBasedTranscriber() {
             shims.enable(Shims.Keys.slices)
             s+"!!.s(${if(m[1]!!.value.isEmpty()) "null" else m[1]!!.value}, " +
                    "${if(m[2]!!.value.isEmpty()) "null" else m[2]!!.value})"
-        }),
+        }, null, "two-arg slice"),
 
         //slice: three args
         //Similarly, step may be a negative number:
@@ -103,23 +103,24 @@ object Pytokot: RuleBasedTranscriber() {
             s+"!!.s(${if(m[1]!!.value.isEmpty()) "null" else m[1]!!.value}, " +
                     (if(m[2]!!.value.isEmpty()) "null" else m[2]!!.value) +
                     "${if(m[3]!!.value.isEmpty()) "" else m[3]!!.value})"
-        }),
+        }, null, "three-arg slice"),
 
-        WordBoundaryRule("True\\b", "true"),
-        WordBoundaryRule("False\\b", "false"),
+        WordBoundaryRule("True\\b", "true", null, "True -> true"),
+        WordBoundaryRule("False\\b", "false", null, "False -> false"),
         //comment out but don't delete 'pass'es.
         //they are needed for indentation-to-closing-brace conversion
-        WordBoundaryRule("pass\\b", "//pass"),
-        WordBoundaryRule("and\\b", "&&"),
-        WordBoundaryRule("or\\b", "||"),
+        WordBoundaryRule("pass\\b", "//pass", null, "comment out 'pass'"),
+        WordBoundaryRule("and\\b", "&&", null, "and -> &&"),
+        WordBoundaryRule("or\\b", "||", null, "or -> ||"),
 
         //len(obj) -> obj.size or obj.length
         WordBoundaryRule(Regex("len\\(([^)]+)\\)"), {s, m ->
             shims.enable(stringSize)
             s+m[1]!!.value+".size"
-        }),
+        }, null, "len()"),
 
         RuleBuilder(Regex("def (\\w+)\\((?:(?:([a-zA-Z]\\w+) ?,? ?)+)*\\h*\\):"))
+            .label("function header & args")
             .afterWordBoundary()
             .outputString { s:String, m:MatchGroupCollection ->
                 val args = StringBuilder(s+"fun "+m[1]!!.value+"(")
@@ -133,10 +134,11 @@ object Pytokot: RuleBasedTranscriber() {
 
         WordBoundaryRule(Regex("for\\h*([^:]+):"), {s, m ->
             s+"for ("+m[1]!!.value+") {"
-        }),
+        }, null, "for-statement"),
 
         //if and else-if statements
         RuleBuilder(Regex("(el)?if ([^\\n]+):")).afterWordBoundary()//\h*(#[^\n]*)?\n
+            .label("(el)if-statement opener")
             .outputString { s, m ->
                 //println("matches: "+m)
                 s+(if(m[1] != null) "else " else "")+//add optional else
@@ -146,13 +148,17 @@ object Pytokot: RuleBasedTranscriber() {
 
         CapturingRule(Regex("u'([^']+)'"), { soFar:String, matches:MatchGroupCollection ->
             "${soFar}\"${matches[1]!!.value}\""
-        }),
+        }, null, "unicode string literal"),
 
         //fallback rule: end-of-line colons -> curly braces
         //Rule("\\h*:\\h*\\n", " {\n"),
 
         //switch to comment mode when we encounter "#" (and convert it to a kotlin // comment)
-        RevisingRule("#", { currentRuleset = ignoreUntil("\n"); "$it//"})
+        RuleBuilder("#").label("to-EOL # comments")
+                .outputString { s, _ ->
+                    currentRuleset = ignoreUntil("\n")
+                    "$s//"
+                }.build()
     )+ stringRules
     fun ignoreUntil(closingRegexToDetect:Regex):List<BaseRule> = ignoreUntil(null, closingRegexToDetect)
     fun ignoreUntil(closingRegexToDetect:String):List<BaseRule> = ignoreUntil(Regex(closingRegexToDetect))
@@ -161,8 +167,9 @@ object Pytokot: RuleBasedTranscriber() {
             currentRuleset = normalRules
             wasInsideString = false
             s + (replacement ?: m[0]!!.value)
-        })
+        }, null, "ignoring until {${closingRegexToDetect.toString().esc()}}")
     )
+
 
     private var currentRuleset = normalRules
     private var lineNumber = 0
