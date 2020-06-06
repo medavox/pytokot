@@ -2,13 +2,15 @@ package com.github.medavox.pytokot
 
 import com.github.medavox.pytokot.Pytokot.stringRules
 import com.github.medavox.transcribers.BaseRule
+import com.github.medavox.transcribers.NoMatchHandler
 import com.github.medavox.transcribers.RuleBasedTranscriber.*
 import kotlin.math.max
+import kotlin.math.min
 
 
-fun String.processDalaiWithRules(rules:List<BaseRule>, onNoRuleMatch:(unmatched:String) -> UnmatchedOutput) : String =
+fun String.processDalaiWithRules(rules:List<BaseRule>, onNoRuleMatch:NoMatchHandler) : String =
     this.processDalaiWithDynamicRules({rules}, onNoRuleMatch)
-fun String.processDalaiWithDynamicRules(rules:()->List<BaseRule>, onNoRuleMatch:(unmatched:String) -> UnmatchedOutput) : String {
+fun String.processDalaiWithDynamicRules(rules:()->List<BaseRule>, onNoRuleMatch:NoMatchHandler) : String {
     var out:String = ""
     var processingWord:String = this
     var consumed = ""
@@ -16,15 +18,19 @@ fun String.processDalaiWithDynamicRules(rules:()->List<BaseRule>, onNoRuleMatch:
         //uses the first rule which matches -- so rule order matters
         for (rule in rules()) {
             val unconsumedMatch:MatchResult? = rule.unconsumedMatcher.find(processingWord)
-
+            val gek = rule.consumedMatcher?.let { (rule.consumedMatcher as Regex).findAll(consumed).lastOrNull()}
             val consumedMatches:Boolean = rule.consumedMatcher == null ||// if it's null, that counts as matching:
                     //rules that don't specify a consumedMatcher aren't checked against it
 
                     //if it has been specified by this rule, it has to match at the end of the already-consumed string
-                    (rule.consumedMatcher as Regex).findAll(consumed).lastOrNull()?.range?.endInclusive == consumed.length-1
+
+                    gek?.range?.endInclusive == consumed.length-1
 
             //if the rule matches the start of the remaining string, and the end of the consumed string
             if(consumedMatches && unconsumedMatch?.range?.start == 0) {
+                if(rule.consumedMatcher != null) {
+                    println(gek?.range?.endInclusive)
+                }
                 if(Pytokot.wasInsideString || rule in stringRules) {
                     println(if(Pytokot.wasInsideString){"END  "}else{"START"}+ ": |${processingWord.subSequence(
                             0,
@@ -42,7 +48,7 @@ fun String.processDalaiWithDynamicRules(rules:()->List<BaseRule>, onNoRuleMatch:
             }
         }
         //no rule matched; call the lambda!
-        val unmatchedOutput = onNoRuleMatch(processingWord)
+        val unmatchedOutput = onNoRuleMatch(processingWord, 1)
         processingWord = processingWord.substring(unmatchedOutput.indexAdvance)
         consumed += processingWord.substring(0, unmatchedOutput.indexAdvance)
         out = unmatchedOutput.output(out)
@@ -68,9 +74,12 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
     var i = 0
     val alreadyRunRules = mutableSetOf<BaseRule>()
     loop@ while(i < this.length) {
-        val processingWord = this.substring(i, this.length)
-        //val braceCloseRule = rules().firstOrNull{ it.label == "closing braces"}
-        //if(i > 0 && this[i-1] == '\n' && braceCloseRule != null) println("closing brace consumed matches: "+braceCloseRule.consumedMatcher)
+        val unconsumedPreview = (if(this.substring(i).length > 32) this.substring(i, i+32) else this.substring(i)).esc()
+        println("-----------------------------------\nat position (consumed+1) $i: $unconsumedPreview")
+        val processingWord = this.substring(i)
+        val consumed = this.substring(0, i)
+        println("\tlast 32 consumed chars:"+this.substring(max(i-32, 0), i).esc())
+        //NOTE: MatchResult.range.first) is unchanged by whether we pass a startingIndex to Regex.find()
         //println("already run rules: "+alreadyRunRules.size)
         //use some fancy collections lambda function to only call .find() and create a MatchResult once
         val hull:List<Pair<BaseRule, MatchResult?>> = (rules() - alreadyRunRules).
@@ -78,19 +87,23 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
             map { rule: BaseRule -> Pair<BaseRule, MatchResult?>(rule, rule.unconsumedMatcher.find(this, i)) }.
             filter { (rule, result) -> result != null }.//filter out rules whose unconsumedMatcher don't match
             filter { (rule, result) ->
-                val consumed = this.substring(0, i + result!!.value.length)
+                println("\tFOR RULE \"${rule.label}\":")
+                //val consumedAndSkipped = this.substring(0, i + result!!.value.length)
+                val consumedMatches = rule.consumedMatcher?.findAll(consumed)
+                val lastConsumedMatch = consumedMatches?.lastOrNull()//we want UNTIL i, not FROM
                 val doesMatch = rule.consumedMatcher == null ||
-                        rule.consumedMatcher?.findAll(consumed)?.lastOrNull()?.range?.endInclusive == result.range.start-1
-                if(rule.label == "closing braces") {
-                    rule.consumedMatcher?.findAll(this.substring(0, result.range.start))?.let {
-                        println("\tmatches: "+it.toList().size)
-                        println("\ti:$i")
-                        println("\tresult.range.start:${result.range.start}")
-                        println("\tresult.value.length:${result.value.length}")
-                        println(it.fold("") { acc, elem:MatchResult ->
-                            ""+elem.range.endInclusive
-                        })
-                    }
+                        lastConsumedMatch?.range?.endInclusive == result!!.range.first -1
+                val numConsumedMatches = consumedMatches?.toList()?.size
+
+                println("\t\tconsumed does match: $doesMatch, number of matches: $numConsumedMatches")
+                if(lastConsumedMatch != null) if(numConsumedMatches != null && numConsumedMatches > 0) {
+                    val lastMatchPreviewEnd = if(lastConsumedMatch.range.start+24 < lastConsumedMatch.range.endInclusive-lastConsumedMatch.range.start) {
+                        lastConsumedMatch.range.start+24
+                    } else lastConsumedMatch.range.endInclusive+1
+                    println("\t\tlast match: ${lastConsumedMatch.range}: "+
+                            this.substring(lastConsumedMatch.range.start, lastMatchPreviewEnd).esc())
+                    println("\t\tunconsumed result.range.start:${result!!.range.start}")
+                    println("\t\tunconsumed result.value.length:${result!!.value.length}")
                 }
                 doesMatch
                 // if the rule's consumedMatcher is null, that counts as matching:
@@ -116,10 +129,7 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
             acc+"\n\t\t\"${elem.first.label}\" after ${elem.second!!.range.start} skipped chars"
         })
         //the brace closer doesn't match before the next normal rule does (because its \n match is in its consumed), so it might always be 2nd or whatever
-        println("\nUSED RULE \"${earliestMatchingRule.label}\" from ${rules().size} rules, ${hull.size} matching")/* to consume: |${processingWord.subSequence(
-            0, kotlin.math.min(16, processingWord.length)
-        )}|\n")*/
-        println("\tlast 8 consumed chars:"+this.substring(max(i-8, 0), i).esc())
+        println("\nUSED RULE \"${earliestMatchingRule.label}\" from ${rules().size} rules, ${hull.size} matching")
 
         //there are actually 2 separate input-consumption steps here, one after the other:
         //1. process any non-matching chars which precede the rule match by passing it to the provided function,
@@ -127,18 +137,14 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
 
         //println("rule: $earliestMatchingRule ; result: ${earliestMatchingResult?.groupValues}")
         //call the lambda on any unmatched characters before the earliest match
-
-        if(earliestMatchingResult!!.range.start > 0) {
-            val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.start)
+        if(earliestMatchingResult!!.range.first > i) {
+            val unmatchedOutput = onNoRuleMatch(processingWord, earliestMatchingResult.range.first - i )//number of chars between i and the start of the match result
+            //println("\t${earliestMatchingResult.range.first - i} unmatched chars skipped before match:"+processingWord.substring(i, earliestMatchingResult.range.first).esc())
             i += unmatchedOutput.indexAdvance
             out = unmatchedOutput.output(out)
             //println("already run rules before emptying: ${alreadyRunRules.size}: $alreadyRunRules")
+            //whenever i increments, clear out the list of already-run rules
             alreadyRunRules.removeAll { true }
-/*            println("matched |${earliestMatchingResult.groupValues}| near: |${processingWord.subSequence(
-                    0,
-                    kotlin.math.min(16, processingWord.length)
-            )}|\ninput: ${processingWord.length}; consumed: ${consumed.length}; output: ${out.length}")*/
-            println("\t${earliestMatchingResult.range.start - 1} unmatched chars skipped before match:"+processingWord.substring(0, earliestMatchingResult.range.start).esc())
         }
 
         out = earliestMatchingRule.outputString(out, earliestMatchingResult.groups)
@@ -146,7 +152,7 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
         val actualLettersConsumed = earliestMatchingRule.lettersConsumed?.invoke(earliestMatchingResult.groups) ?: earliestMatchingResult.value.length
         if(actualLettersConsumed > 0) {
             i += actualLettersConsumed
-            println("\t$actualLettersConsumed chars consumed: "+processingWord.substring(0, actualLettersConsumed).esc())
+            println("\t$actualLettersConsumed chars consumed: "+earliestMatchingResult.value)
 //            println("\t replacement: $earliestMatchingRule.")
             alreadyRunRules.removeAll { true }
         } else {//no characters were consumed
@@ -154,7 +160,6 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
             alreadyRunRules.add(earliestMatchingRule)
         }
     }
-    //System.out.println("consumed: $consumed")
     return out
 }
 

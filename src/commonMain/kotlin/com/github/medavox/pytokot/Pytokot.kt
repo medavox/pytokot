@@ -217,6 +217,6 @@ object Pytokot: RuleBasedTranscriber() {
 
     override fun transcribe(nativeText: String): String {
         return nativeText.ruleProcess({ currentRuleset}, copy)+shims.getNeededShims()
-        //return nativeText.processDalaiWithRules({ currentRuleset}, copy)+shims.getNeededShims()
+        //return nativeText.processDalaiWithDynamicRules({ currentRuleset}, copy)+shims.getNeededShims()
     }
 }
