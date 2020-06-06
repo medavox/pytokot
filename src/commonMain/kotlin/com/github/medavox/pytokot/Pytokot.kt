@@ -159,7 +159,7 @@ object Pytokot: RuleBasedTranscriber() {
                     currentRuleset = ignoreUntil("\n")
                     "$s//"
                 }.build()
-    )+ stringRules
+    )//+ stringRules
     fun ignoreUntil(closingRegexToDetect:Regex):List<BaseRule> = ignoreUntil(null, closingRegexToDetect)
     fun ignoreUntil(closingRegexToDetect:String):List<BaseRule> = ignoreUntil(Regex(closingRegexToDetect))
     fun ignoreUntil(consumedMatcher:Regex?=null, closingRegexToDetect:Regex, replacement:String?=null):List<BaseRule> = listOf(
