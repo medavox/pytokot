@@ -4,9 +4,6 @@ import com.github.medavox.pytokot.Pytokot.stringRules
 import com.github.medavox.transcribers.BaseRule
 import com.github.medavox.transcribers.NoMatchHandler
 import com.github.medavox.transcribers.RuleBasedTranscriber.*
-import kotlin.math.max
-import kotlin.math.min
-
 
 fun String.processDalaiWithRules(rules:List<BaseRule>, onNoRuleMatch:NoMatchHandler) : String =
     this.processDalaiWithDynamicRules({rules}, onNoRuleMatch)
@@ -33,8 +30,7 @@ fun String.processDalaiWithDynamicRules(rules:()->List<BaseRule>, onNoRuleMatch:
                 }
                 if(Pytokot.wasInsideString || rule in stringRules) {
                     println(if(Pytokot.wasInsideString){"END  "}else{"START"}+ ": |${processingWord.subSequence(
-                            0,
-                            kotlin.math.min(16, processingWord.length)
+                            0, kotlin.math.min(16, processingWord.length)
                         )}|\n")
                 }
                 out = rule.outputString(out, unconsumedMatch.groups)
@@ -67,18 +63,22 @@ fun BaseRule.asString(): String {
 //fixme: choosing the next earliest rule to match is not the same as choosing the first matching rule in the list
 fun String.processFasterWithRules(rules:List<BaseRule>, onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
 ) : String = this.processFasterWithDynamicRules({rules}, onNoRuleMatch)
+
 fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
                                          onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
 ) : String {
     var out:String = ""
     var i = 0
     val alreadyRunRules = mutableSetOf<BaseRule>()
-    loop@ while(i < this.length) {
-        val unconsumedPreview = (if(this.substring(i).length > 32) this.substring(i, i+32) else this.substring(i)).esc()
-        println("-----------------------------------\nat position (consumed+1) $i: $unconsumedPreview")
+    val debug = true
+    while(i < this.length) {
+        //val unconsumedPreview = (if(this.substring(i).length > 32) this.substring(i, i+32) else this.substring(i)).esc()
+
         val processingWord = this.substring(i)
         val consumed = this.substring(0, i)
-        println("\tlast 32 consumed chars:"+this.substring(max(i-32, 0), i).esc())
+
+        fun MatchResult.asString():String = "${range.first}:${range.last} = \"${groupValues[0].esc()}\""
+
         //NOTE: MatchResult.range.first) is unchanged by whether we pass a startingIndex to Regex.find()
         //println("already run rules: "+alreadyRunRules.size)
         //use some fancy collections lambda function to only call .find() and create a MatchResult once
@@ -86,50 +86,68 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
             //run the unconsumed regex on every rule
             map { rule: BaseRule -> Pair<BaseRule, MatchResult?>(rule, rule.unconsumedMatcher.find(this, i)) }.
             filter { (rule, result) -> result != null }.//filter out rules whose unconsumedMatcher don't match
-            filter { (rule, result) ->
-                println("\tFOR RULE \"${rule.label}\":")
+            map { Pair(it.first, it.second!!) }.//cast to List<Pair<BaseRule, MatchResult>>
+            filter { (rule, result:MatchResult) ->
                 //val consumedAndSkipped = this.substring(0, i + result!!.value.length)
                 val consumedMatches = rule.consumedMatcher?.findAll(consumed)
-                val lastConsumedMatch = consumedMatches?.lastOrNull()//we want UNTIL i, not FROM
-                val doesMatch = rule.consumedMatcher == null ||
-                        lastConsumedMatch?.range?.endInclusive == result!!.range.first -1
-                val numConsumedMatches = consumedMatches?.toList()?.size
+                val numConsumedMatches = consumedMatches?.toList()
 
-                println("\t\tconsumed does match: $doesMatch, number of matches: $numConsumedMatches")
-                if(lastConsumedMatch != null) if(numConsumedMatches != null && numConsumedMatches > 0) {
+                val lastConsumedMatch = consumedMatches?.lastOrNull()//we want UNTIL i, not FROM
+                // if the rule's consumedMatcher is null, that counts as matching:
+                //rules that don't specify a consumedMatcher aren't checked against it
+                //if it's not null, then it has to match at the end of the already-consumed string
+                val consumedDoesMatch = rule.consumedMatcher == null ||
+                        lastConsumedMatch?.range?.endInclusive == result.range.first -1
+                numConsumedMatches?.let{
+
+                    val lastMatch = numConsumedMatches.lastOrNull()
+                    lastMatch?.let {
+                        if(it.groupValues[0].isNotEmpty() && it.groupValues[0].isNotBlank()) {
+                            println("for \"${rule.label}\" consumed matches: ${numConsumedMatches.size}; " +
+                                    "last consumed match:")
+                            println("${lastMatch.asString()} ; ${result.asString()}")
+                            println("doesMatch: $consumedDoesMatch\n")
+                        }
+                    }
+                }
+                /*if(lastConsumedMatch != null && numConsumedMatches != null && numConsumedMatches.size > 0 && !doesMatch) {
+                    println("-----------------------------------\nat position (consumed+1) $i: $unconsumedPreview")
+                    println("\tlast 32 consumed chars:"+this.substring(max(i-32, 0), i).esc())
+                    if(debug)println("\tFOR UNMATCHED CONSUMED-CHECKING RULE \"${rule.label}\":")
+                    //if(debug)println("\t\tconsumed does match: $doesMatch, number of matches: $numConsumedMatches")
                     val lastMatchPreviewEnd = if(lastConsumedMatch.range.start+24 < lastConsumedMatch.range.endInclusive-lastConsumedMatch.range.start) {
                         lastConsumedMatch.range.start+24
                     } else lastConsumedMatch.range.endInclusive+1
-                    println("\t\tlast match: ${lastConsumedMatch.range}: "+
+                    if(debug)println("\t\tlast match: ${lastConsumedMatch.range}: "+
                             this.substring(lastConsumedMatch.range.start, lastMatchPreviewEnd).esc())
-                    println("\t\tunconsumed result.range.start:${result!!.range.start}")
-                    println("\t\tunconsumed result.value.length:${result!!.value.length}")
+                    if(debug)println("\t\tunconsumed result.range.start:${result!!.range.start}")
+                    if(debug)println("\t\tunconsumed result.value.length:${result!!.value.length}")
+                }*/
+                //if(rule.label == "closing braces" && processingWord.startsWith("\t\tsuche")) {
+                if(i >= 1413) {
+                    println("bleh")
                 }
-                doesMatch
-                // if the rule's consumedMatcher is null, that counts as matching:
-                //rules that don't specify a consumedMatcher aren't checked against it
-                    //if it has been specified by this rule, it has to match at the end of the already-consumed string
-            }.//filter out rules that don't match
-            sortedBy { (rule, result) -> result!!.range.start }//sort by earliest match
+                consumedDoesMatch
+            }.
+            sortedBy { (rule, result) -> result.range.start }//sort by earliest match
                 //need to get the list of rules after each rule!
         //(earliestMatchingRules, earliestMatchingResults)
         //no rules matched anywhere, at all
         //(no rules match before the end of the remaining input)
-        //this means the rest of the input "doesn't match"
-
+        //this means the rest of the input doesn't match any rules,
         //so call the lambda on the remaining string
-        if(hull.isEmpty()) return onNoRuleMatch(processingWord, processingWord.length).output(out) //else, if it's null: //else, if it's null:
+        if(hull.isEmpty()) return onNoRuleMatch(processingWord, processingWord.length).output(out) //else, if it's null:
 
         val earliestMatchingRule:BaseRule  = hull[0].first//hu.firstOrNull()?:return
         val earliestMatchingResult:MatchResult =  hull[0].second!!
         //.firstOrNull()?:return onNoRuleMatch(processingWord, processingWord.length).output(out) //else, if it's null:
         //last 8 consumed chars
 
-        val possibleRules:String = hull.fold("", { acc:String, elem:Pair<BaseRule, MatchResult?> ->
+/*        val possibleRules:String = hull.fold("", { acc:String, elem:Pair<BaseRule, MatchResult?> ->
             acc+"\n\t\t\"${elem.first.label}\" after ${elem.second!!.range.start} skipped chars"
-        })
+        })*/
         //the brace closer doesn't match before the next normal rule does (because its \n match is in its consumed), so it might always be 2nd or whatever
-        println("\nUSED RULE \"${earliestMatchingRule.label}\" from ${rules().size} rules, ${hull.size} matching")
+        //println("\nUSED RULE \"${earliestMatchingRule.label}\" from ${rules().size} rules, ${hull.size} matching")
 
         //there are actually 2 separate input-consumption steps here, one after the other:
         //1. process any non-matching chars which precede the rule match by passing it to the provided function,
@@ -152,7 +170,7 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
         val actualLettersConsumed = earliestMatchingRule.lettersConsumed?.invoke(earliestMatchingResult.groups) ?: earliestMatchingResult.value.length
         if(actualLettersConsumed > 0) {
             i += actualLettersConsumed
-            println("\t$actualLettersConsumed chars consumed: "+earliestMatchingResult.value)
+            //println("\t$actualLettersConsumed chars consumed: "+earliestMatchingResult.value)
 //            println("\t replacement: $earliestMatchingRule.")
             alreadyRunRules.removeAll { true }
         } else {//no characters were consumed
