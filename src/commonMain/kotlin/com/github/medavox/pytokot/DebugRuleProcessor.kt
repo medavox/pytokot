@@ -59,7 +59,7 @@ fun BaseRule.asString(): String {
             "unconsumedMatcher=$unconsumedMatcher, " +
             "outputString=${outputString}, lettersConsumed=$lettersConsumed)"
 }
-
+fun MatchResult.asString():String = "${range.first}:${range.last} = \"${groupValues[0].esc()}\""
 //fixme: choosing the next earliest rule to match is not the same as choosing the first matching rule in the list
 fun String.processFasterWithRules(rules:List<BaseRule>, onNoRuleMatch:(remainingInput:String, unmatchedChars:Int) -> UnmatchedOutput
 ) : String = this.processFasterWithDynamicRules({rules}, onNoRuleMatch)
@@ -77,8 +77,7 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
         val processingWord = this.substring(i)
         val consumed = this.substring(0, i)
 
-        fun MatchResult.asString():String = "${range.first}:${range.last} = \"${groupValues[0].esc()}\""
-
+        println("\nAT POSITION $i:")
         //NOTE: MatchResult.range.first) is unchanged by whether we pass a startingIndex to Regex.find()
         //println("already run rules: "+alreadyRunRules.size)
         //use some fancy collections lambda function to only call .find() and create a MatchResult once
@@ -97,19 +96,7 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
                 //rules that don't specify a consumedMatcher aren't checked against it
                 //if it's not null, then it has to match at the end of the already-consumed string
                 val consumedDoesMatch = rule.consumedMatcher == null ||
-                        lastConsumedMatch?.range?.endInclusive == result.range.first -1
-                numConsumedMatches?.let{
-
-                    val lastMatch = numConsumedMatches.lastOrNull()
-                    lastMatch?.let {
-                        if(it.groupValues[0].isNotEmpty() && it.groupValues[0].isNotBlank()) {
-                            println("for \"${rule.label}\" consumed matches: ${numConsumedMatches.size}; " +
-                                    "last consumed match:")
-                            println("${lastMatch.asString()} ; ${result.asString()}")
-                            println("doesMatch: $consumedDoesMatch\n")
-                        }
-                    }
-                }
+                        consumedResults?.lastOrNull()?.range?.endInclusive == result.range.first -1
                 /*if(lastConsumedMatch != null && numConsumedMatches != null && numConsumedMatches.size > 0 && !doesMatch) {
                     println("-----------------------------------\nat position (consumed+1) $i: $unconsumedPreview")
                     println("\tlast 32 consumed chars:"+this.substring(max(i-32, 0), i).esc())
@@ -124,12 +111,14 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
                     if(debug)println("\t\tunconsumed result.value.length:${result!!.value.length}")
                 }*/
                 //if(rule.label == "closing braces" && processingWord.startsWith("\t\tsuche")) {
-                if(i >= 1413) {
-                    println("bleh")
+                //if(i >= 1413) {
+                if(consumedDoesMatch) {
+                    println("\tRule \"${rule.label}\" | ${consumedResults?.lastOrNull()?.asString() ?: "<null>"} ; ${result.asString()}")
                 }
+                //we want to examine the chosen rule (and only the chosen rule) in this context, with all these variables
                 consumedDoesMatch
             }.
-            sortedBy { (rule, result) -> result.range.start }//sort by earliest match
+            sortedBy { (rule, result) -> result.range.first }//sort by earliest match
                 //need to get the list of rules after each rule!
         //(earliestMatchingRules, earliestMatchingResults)
         //no rules matched anywhere, at all
@@ -139,6 +128,7 @@ fun String.processFasterWithDynamicRules(rules:()->List<BaseRule>,
         if(hull.isEmpty()) return onNoRuleMatch(processingWord, processingWord.length).output(out) //else, if it's null:
 
         val earliestMatchingRule:BaseRule  = hull[0].first//hu.firstOrNull()?:return
+        println("selected rule: "+earliestMatchingRule.label)
         val earliestMatchingResult:MatchResult =  hull[0].second!!
         //.firstOrNull()?:return onNoRuleMatch(processingWord, processingWord.length).output(out) //else, if it's null:
         //last 8 consumed chars

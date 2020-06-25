@@ -167,11 +167,17 @@ object Pytokot: RuleBasedTranscriber() {
             currentRuleset = normalRules
             wasInsideString = false
             s + (replacement ?: m[0]!!.value)
-        }, null, "ignoring until {${closingRegexToDetect.toString().esc()}}")
+        }, null, "ignore until {${closingRegexToDetect.toString().esc()}}")
     )
 
 
-    private var currentRuleset = normalRules
+    private var currentRuleset:List<BaseRule> = normalRules//todo: change to setter
+        set(value) {
+            println("\tchanging ruleset to ${value.size}-rule list: "+value.fold("["){ acc, elem:BaseRule ->
+                acc + "\n\t\t\"${elem.label}\", "
+            }+"]")
+            field = value
+        }
     private var lineNumber = 0
     private val openIndents = mutableListOf<Int>()
     /**if indentation spaces are less than last time,
